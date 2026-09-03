@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Teams-руу тараах{% endblock %}
+{% block heading %}Teams-руу тараах{% endblock %}
+{% block subheading %}Сонгосон контентыг олон channel руу нэгэн зэрэг илгээх{% endblock %}
+
+{% block actions %}
+<a class="btn btn-sm" href="/admin/channels">{{ ic.icon('teams') }} Channel удирдах</a>
+{% endblock %}
+
+{% block content %}
+<div class="split">
+  <form class="card" method="post" action="/admin/distribute">
+    <div class="card-head">
+      <span class="stat-icon" style="--accent:#8b5cf6;margin:0">{{ ic.icon('send') }}</span>
+      <div><h2>Түгээлт үүсгэх</h2><div class="tiny dim">Контент болон зорилтот channel-уудаа сонгоно уу</div></div>
+    </div>
+
+    <label class="field">
+      <span>Контент *</span>
+      <select name="content_id" required>
+        <option value="">— Контент сонгох —</option>
+        {% for c in contents %}
+          <option value="{{ c.id }}" {{ 'selected' if selected == c.id }}>
+            [{{ 'Бонус' if c.section == SECTION_BONUS else 'Бусад' }}] {{ c.title }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="card-head" style="margin-top:20px">
+      <h3>Зорилтот Teams channel *</h3>
+      <button type="button" class="spacer btn btn-ghost btn-sm" data-select-all>Бүгдийг сонгох</button>
+    </div>
+    <div class="grid g-2">
+      {% for ch in channels %}
+        <label class="check {{ 'tag-off' if not ch.is_active }}">
+          <input type="checkbox" name="channel_ids" value="{{ ch.id }}" {{ 'disabled' if not ch.is_active }}>
+          <span style="min-width:0;flex:1">
+            <b class="small">{{ ch.name }}</b>
+            {% if not ch.is_active %}<span class="tag tag-off">Идэвхгүй</span>{% endif %}<br>
+            <span class="tiny dim">{{ ch.team_name or 'Teams' }} · {{ ch.members }} гишүүн · {{ ch.sent_count }} илгээлт</span>
+          </span>
+        </label>
+      {% else %}
+        <div class="empty small span-2">
+          Channel бүртгэгдээгүй байна. <a href="/admin/channels" style="color:var(--brand)">Teams channel нэмэх →</a>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="grid g-2 mt">
+      <label class="field" style="margin:0">
+        <span>Хавсрах мессеж</span>
+        <input type="text" name="message" placeholder="Шинэ контент нэмэгдлээ 🎬 Заавал үзээрэй.">
+      </label>
+      <label class="field" style="margin:0">
+        <span>Товлох хугацаа (хоосон = шууд илгээх)</span>
+        <input type="datetime-local" name="scheduled_at">
+      </label>
+    </div>
+
+    <button class="btn btn-primary btn-block mt" type="submit">{{ ic.icon('send') }} Илгээх / Товлох</button>
+  </form>
+
+  <aside class="grid" style="gap:16px">
+    <div class="card">
+      <div class="card-head"><h3>Teams интеграц</h3></div>
+      <p class="small muted" style="margin-bottom:8px">
+        Prototype горимд түгээлт нь системд бүртгэгдэж, channel-ийн холбоос дээр дарж
+        Teams-д шилжинэ. Production дээр Microsoft Graph API-аар message шууд илгээгдэнэ.
+      </p>
+      <div class="tiny dim">
+        <b>Graph endpoint:</b><br>
+        <code style="word-break:break-all">POST /teams/{team-id}/channels/{channel-id}/messages</code>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Идэвхтэй channel</h3><span class="spacer tag">{{ channels|selectattr('is_active')|list|length }}</span></div>
+      {% for ch in channels if ch.is_active %}
+        <div class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div style="min-width:0;flex:1">
+            <div class="small"><b>{{ ch.name }}</b></div>
+            <a class="tiny" style="color:var(--brand-2);word-break:break-all" href="{{ ch.link }}" target="_blank" rel="noopener">
+              {{ ic.icon('link', 11) }} {{ ch.link|truncate(40) }}</a>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+
+<div class="card mt">
+  <div class="card-head">
+    <h2>Түгээлтийн түүх</h2>
+    <span class="spacer tag">{{ history|length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table style="min-width:820px">
+      <thead>
+        <tr><th>Контент</th><th>Channel</th><th>Мессеж</th><th>Статус</th><th>Огноо</th><th>Илгээсэн</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for d in history %}
+          <tr>
+            <td class="small"><a href="/content/{{ d.content_id }}"><b>{{ d.content_title|truncate(40) }}</b></a></td>
+            <td class="small">
+              {{ d.channel_name }}
+              {% if d.channel_link %}
+                <a href="{{ d.channel_link }}" target="_blank" rel="noopener" title="Teams-д нээх"
+                   style="color:var(--brand-2)">{{ ic.icon('link', 12) }}</a>
+              {% endif %}
+            </td>
+            <td class="small dim">{{ (d.message or '—')|truncate(38) }}</td>
+            <td><span class="tag {{ 'tag-ok' if d.status == 'sent' else 'tag-warn' }}">
+              {{ 'Илгээгдсэн' if d.status == 'sent' else 'Төлөвлөгдсөн' }}</span></td>
+            <td class="small dim nowrap">{{ (d.sent_at or d.scheduled_at)|dt }}</td>
+            <td class="small dim">{{ d.sender or '—' }}</td>
+            <td>
+              {% if d.status == 'scheduled' %}
+                <form method="post" action="/admin/distribute/{{ d.id }}/send-now">
+                  <button class="btn btn-sm">Одоо илгээх</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="center dim" style="padding:36px">Түгээлт хийгдээгүй байна.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

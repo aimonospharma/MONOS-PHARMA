@@ -1,0 +1,35 @@
+{% import "icons.html" as ic %}
+
+{% macro tile(item, seen=false) -%}
+<a class="tile reveal" href="/content/{{ item.id }}" style="animation-delay:{{ (loop.index0 if loop is defined else 0) * 0.04 }}s">
+  <div class="tile-media">
+    {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="" loading="lazy">{% endif %}
+    <div class="tile-badges">
+      <span class="tag {{ 'tag-bonus' if item.section == SECTION_BONUS else 'tag-other' }}">
+        {{ 'БОНУС' if item.section == SECTION_BONUS else KIND_LABELS.get(item.kind, item.kind)|upper }}
+      </span>
+    </div>
+    {% if seen %}<span class="seen-mark" title="Үзсэн">{{ ic.icon('check', 13) }}</span>{% endif %}
+    {% if item.kind == 'video' %}
+      <div class="tile-play"><span>{{ ic.icon('play', 20) }}</span></div>
+      {% if item.duration_sec %}<span class="tile-dur">{{ item.duration_sec|dur }}</span>{% endif %}
+    {% endif %}
+  </div>
+  <div class="tile-body">
+    {% if item.product_name %}
+      <span class="tile-prod" style="color:{{ item.product_color }}">
+        <span class="dot" style="background:{{ item.product_color }}"></span>{{ item.product_name }}
+      </span>
+    {% else %}
+      <span class="tile-prod dim"><span class="dot" style="background:#7c5cff"></span>Ангилалгүй</span>
+    {% endif %}
+    <div class="tile-title">{{ item.title }}</div>
+    <div class="tile-meta">
+      <span>{{ ic.icon('eye', 13) }} {{ item.views_total|num }}</span>
+      <span>{{ ic.icon('users', 13) }} {{ item.viewers_unique|num }}</span>
+      <span>{{ ic.icon('comment', 13) }} {{ item.comments_total|num }}</span>
+      <span class="spacer">{{ item.created_at|ago }}</span>
+    </div>
+  </div>
+</a>
+{%- endmacro %}

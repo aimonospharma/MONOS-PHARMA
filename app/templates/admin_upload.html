@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% set editing = item is not none %}
+{% block title %}{{ 'Контент засах' if editing else 'Шинэ контент' }}{% endblock %}
+{% block heading %}{{ 'Контент засах' if editing else 'Шинэ контент байршуулах' }}{% endblock %}
+{% block subheading %}Видео, зураг, постер — drag &amp; drop-оор{% endblock %}
+
+{% block actions %}
+<a class="btn btn-ghost btn-sm" href="/admin/content">Жагсаалт руу буцах</a>
+{% if editing %}<a class="btn btn-sm" href="/content/{{ item.id }}">{{ ic.icon('eye') }} Preview</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data"
+      action="{{ '/admin/content/' ~ item.id ~ '/edit' if editing else '/admin/content/new' }}">
+  <div class="split">
+    <div class="grid" style="gap:16px">
+
+      {% if not editing %}
+      <div class="card">
+        <div class="card-head">
+          <span class="stat-icon" style="--accent:#00e0a4;margin:0">{{ ic.icon('upload') }}</span>
+          <div><h2>1. Файл</h2><div class="tiny dim">Видео, зураг эсвэл PDF постер (дээд тал нь {{ MAX_UPLOAD_MB }}MB)</div></div>
+        </div>
+        <div class="dropzone" data-dropzone="mainFile">
+          {{ ic.icon('upload', 40) }}
+          <strong>Файлаа энд чирж оруулна уу</strong>
+          <span class="small dim">эсвэл дарж сонгоно уу · MP4, WEBM, MOV, JPG, PNG, PDF</span>
+        </div>
+        <input id="mainFile" type="file" name="file" hidden
+               accept="video/*,image/*,application/pdf">
+        <div class="file-pill" data-fileinfo hidden></div>
+        <div class="preview-box mt" data-preview hidden></div>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="card-head">
+          <span class="stat-icon" style="--accent:#17d1ff;margin:0">{{ ic.icon('file') }}</span>
+          <div><h2>{{ '1' if editing else '2' }}. Мэдээлэл</h2><div class="tiny dim">Гарчиг, тайлбар, ангилал</div></div>
+        </div>
+
+        <label class="field">
+          <span>Гарчиг *</span>
+          <input type="text" name="title" required value="{{ item.title if editing else '' }}"
+                 placeholder="Жишээ: Ампилин — бонус урамшууллын нөхцөл">
+        </label>
+        <label class="field">
+          <span>Тайлбар</span>
+          <textarea name="description" placeholder="Контентын товч агуулга, гол мессеж…">{{ item.description if editing else '' }}</textarea>
+        </label>
+
+        <div class="grid g-2">
+          <label class="field">
+            <span>Хэсэг *</span>
+            <select name="section">
+              <option value="{{ SECTION_BONUS }}" {{ 'selected' if editing and item.section == SECTION_BONUS }}>
+                {{ SECTION_SHORT[SECTION_BONUS] }}
+              </option>
+              <option value="{{ SECTION_OTHER }}" {{ 'selected' if not editing or item.section == SECTION_OTHER }}>
+                {{ SECTION_SHORT[SECTION_OTHER] }}
+              </option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Бүтээгдэхүүн</span>
+            <select name="product_id">
+              <option value="">— Сонгоогүй —</option>
+              {% for p in products %}
+                <option value="{{ p.id }}" {{ 'selected' if editing and item.product_id == p.id }}>{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field">
+            <span>Нийтлэх огноо</span>
+            <input type="date" name="publish_date"
+                   value="{{ item.publish_date if editing else now().date().isoformat() }}">
+          </label>
+          <label class="field">
+            <span>Статус</span>
+            <select name="status">
+              <option value="published" {{ 'selected' if not editing or item.status == 'published' }}>Нийтлэгдсэн</option>
+              <option value="draft" {{ 'selected' if editing and item.status == 'draft' }}>Ноорог</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Түлхүүр үг (таслалаар тусгаарлана)</span>
+          <input type="text" name="tags" value="{{ tags if editing else '' }}"
+                 placeholder="бонус, урамшуулал, 2026Q1">
+        </label>
+
+        <label class="field" style="margin-bottom:0">
+          <span>Cover зураг (сонголт)</span>
+          <input type="file" name="cover" accept="image/*">
+          <span class="tiny dim">Оруулаагүй бол автоматаар gradient poster үүсгэнэ.</span>
+        </label>
+      </div>
+
+      {% if not editing %}
+      <div class="card">
+        <div class="card-head">
+          <span class="stat-icon" style="--accent:#8b5cf6;margin:0">{{ ic.icon('send') }}</span>
+          <div><h2>3. Teams-руу тараах</h2><div class="tiny dim">Олон channel-г нэгэн зэрэг сонгож болно</div></div>
+          <button type="button" class="spacer btn btn-ghost btn-sm" data-select-all>Бүгдийг сонгох</button>
+        </div>
+        <div class="grid g-2">
+          {% for ch in channels %}
+            <label class="check">
+              <input type="checkbox" name="channel_ids" value="{{ ch.id }}">
+              <span style="min-width:0">
+                <b class="small">{{ ch.name }}</b><br>
+                <span class="tiny dim">{{ ch.team_name or 'Teams' }} · {{ ch.members }} гишүүн</span>
+              </span>
+            </label>
+          {% else %}
+            <div class="empty small span-2">
+              Channel бүртгэгдээгүй. <a href="/admin/channels" style="color:var(--brand)">Teams channel нэмэх →</a>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="grid g-2 mt">
+          <label class="field" style="margin:0">
+            <span>Хавсрах мессеж</span>
+            <input type="text" name="message" placeholder="Шинэ контент нэмэгдлээ 🎬">
+          </label>
+          <label class="field" style="margin:0">
+            <span>Товлох (хоосон бол шууд илгээнэ)</span>
+            <input type="datetime-local" name="scheduled_at">
+          </label>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <aside class="grid" style="gap:16px">
+      <div class="card">
+        <div class="card-head"><h3>Хадгалах</h3></div>
+        <button class="btn btn-primary btn-block" type="submit">
+          {{ ic.icon('check') }} {{ 'Өөрчлөлт хадгалах' if editing else 'Хадгалж, тараах' }}
+        </button>
+        {% if editing %}
+          <a class="btn btn-violet btn-block mt" href="/admin/distribute?content_id={{ item.id }}">
+            {{ ic.icon('send') }} Teams-руу тараах
+          </a>
+          <form method="post" action="/admin/content/{{ item.id }}/delete" class="mt"
+                data-confirm="Контентыг бүрмөсөн устгах уу?">
+            <button class="btn btn-danger btn-block">{{ ic.icon('trash') }} Устгах</button>
+          </form>
+        {% endif %}
+      </div>
+
+      {% if editing %}
+        <div class="card">
+          <div class="card-head"><h3>Preview</h3></div>
+          <div class="preview-box">
+            {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="">{% endif %}
+          </div>
+          <div class="row small dim mt">
+            <span>{{ ic.icon('eye', 13) }} {{ item.views_total }}</span>
+            <span>{{ ic.icon('users', 13) }} {{ item.viewers_unique }}</span>
+            <span>{{ ic.icon('comment', 13) }} {{ item.comments_total }}</span>
+          </div>
+          {% if item.file_name %}
+            <div class="tiny dim mt">{{ ic.icon('file', 12) }} {{ item.file_name }} ({{ item.size_bytes|size }})</div>
+          {% endif %}
+        </div>
+
+        {% if distributions %}
+        <div class="card">
+          <div class="card-head"><h3>Түгээлтийн түүх</h3></div>
+          {% for d in distributions %}
+            <div class="timeline-item">
+              <span class="timeline-dot" style="{{ 'background:#ffb020' if d.status == 'scheduled' }}"></span>
+              <div style="min-width:0;flex:1">
+                <div class="small"><b>{{ d.channel_name }}</b></div>
+                <div class="tiny dim">{{ (d.sent_at or d.scheduled_at)|dt }}</div>
+              </div>
+              {% if d.status == 'scheduled' %}
+                <form method="post" action="/admin/distribute/{{ d.id }}/send-now">
+                  <button class="btn btn-sm">Одоо илгээх</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% else %}
+        <div class="card">
+          <div class="card-head">
+            <span class="stat-icon" style="--accent:#ffb020;margin:0">{{ ic.icon('info') }}</span>
+            <h3>Зөвлөмж</h3>
+          </div>
+          <ul class="small muted" style="padding-left:18px;margin:0">
+            <li><b>Бонус хэсэг</b> — жор баригчид зориулсан идэвхтэй бүтээгдэхүүний урамшууллын контент.</li>
+            <li><b>Бусад хэсэг</b> — сургалт, танилцуулга, эмнэлзүйн мэдээлэл.</li>
+            <li>Бүтээгдэхүүнээр ангилсан контент л dashboard-д бүтээгдэхүүний статистикт орно.</li>
+            <li>Teams tab дээр mobile-аар их үзэгддэг тул босоо/квадрат постер илүү тохиромжтой.</li>
+          </ul>
+          <a class="btn btn-sm btn-block mt" href="/admin/products">{{ ic.icon('box') }} Бүтээгдэхүүн нэмэх</a>
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+</form>
+{% endblock %}

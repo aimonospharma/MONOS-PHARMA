@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Teams channel{% endblock %}
+{% block heading %}Teams channel удирдлага{% endblock %}
+{% block subheading %}Контент түгээх channel-ийн холбоосыг гараар бүртгэнэ{% endblock %}
+
+{% block content %}
+<div class="split">
+  <div class="card">
+    <div class="card-head">
+      <h2>Бүртгэлтэй channel-ууд</h2>
+      <span class="spacer tag">{{ channels|length }}</span>
+    </div>
+    <div class="table-wrap">
+      <table style="min-width:760px">
+        <thead>
+          <tr><th>Channel</th><th>Холбоос</th><th class="num">Гишүүд</th><th class="num">Илгээлт</th>
+              <th class="num">Үзэлт</th><th>Статус</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for ch in channels %}
+            <tr>
+              <td>
+                <b class="small">{{ ch.name }}</b><br>
+                <span class="tiny dim">{{ ch.team_name or '—' }}</span>
+              </td>
+              <td class="small" style="max-width:280px">
+                <a href="{{ ch.link }}" target="_blank" rel="noopener" style="color:var(--brand-2);word-break:break-all">
+                  {{ ic.icon('link', 12) }} {{ ch.link|truncate(44) }}
+                </a>
+                <button type="button" class="btn btn-ghost btn-sm" data-copy="{{ ch.link }}">Хуулах</button>
+              </td>
+              <td class="num">{{ ch.members }}</td>
+              <td class="num">{{ ch.sent_count }}</td>
+              <td class="num"><b>{{ ch.views_total }}</b></td>
+              <td>
+                <span class="tag {{ 'tag-ok' if ch.is_active else 'tag-off' }}">
+                  {{ 'Идэвхтэй' if ch.is_active else 'Идэвхгүй' }}</span>
+              </td>
+              <td>
+                <div class="row nowrap" style="gap:5px;flex-wrap:nowrap">
+                  <form method="post" action="/admin/channels/{{ ch.id }}/toggle">
+                    <button class="btn btn-sm">{{ 'Унтраах' if ch.is_active else 'Асаах' }}</button>
+                  </form>
+                  <form method="post" action="/admin/channels/{{ ch.id }}/delete"
+                        data-confirm="'{{ ch.name }}' channel-ийг устгах уу? Түгээлтийн түүх мөн устна.">
+                    <button class="btn btn-danger btn-sm">{{ ic.icon('trash', 14) }}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="center dim" style="padding:36px">Channel бүртгэгдээгүй байна.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <aside class="grid" style="gap:16px">
+    <form class="card" method="post" action="/admin/channels">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#17d1ff;margin:0">{{ ic.icon('plus') }}</span>
+        <h3>Channel нэмэх</h3>
+      </div>
+      <label class="field">
+        <span>Channel нэр *</span>
+        <input type="text" name="name" required placeholder="Эмийн сан — Улаанбаатар">
+      </label>
+      <label class="field">
+        <span>Team нэр</span>
+        <input type="text" name="team_name" placeholder="Monos Pharmacy">
+      </label>
+      <label class="field">
+        <span>Teams channel холбоос *</span>
+        <input type="text" name="link" required placeholder="https://teams.microsoft.com/l/channel/…">
+        <span class="tiny dim">Teams дээр channel → … → "Get link to channel"</span>
+      </label>
+      <label class="field">
+        <span>Incoming webhook URL (сонголт)</span>
+        <input type="text" name="webhook_url" placeholder="https://outlook.office.com/webhook/…">
+      </label>
+      <label class="field">
+        <span>Гишүүдийн тоо</span>
+        <input type="number" name="members" min="0" value="0">
+      </label>
+      <button class="btn btn-primary btn-block">{{ ic.icon('check') }} Хадгалах</button>
+    </form>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#ffb020;margin:0">{{ ic.icon('info') }}</span>
+        <h3>Холбоосыг хаанаас авах вэ?</h3>
+      </div>
+      <ol class="small muted" style="padding-left:18px;margin:0">
+        <li>Teams → зорилтот team → channel дээр хулганы баруун товч.</li>
+        <li><b>Get link to channel</b> сонгож холбоосыг хуулна.</li>
+        <li>Дээрх формд буулгаад хадгална.</li>
+      </ol>
+      <p class="tiny dim mt">
+        Production дээр Microsoft Graph API-аар team/channel жагсаалт автоматаар татагдана
+        (<code>GET /me/joinedTeams</code>).
+      </p>
+    </div>
+  </aside>
+</div>
+{% endblock %}

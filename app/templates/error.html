@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Алдаа {{ code }}{% endblock %}
+{% block heading %}Алдаа {{ code }}{% endblock %}
+{% block subheading %}{{ detail }}{% endblock %}
+
+{% block content %}
+<div class="card empty">
+  {{ ic.icon('info', 46) }}
+  <h2>{{ code }}</h2>
+  <p class="muted">{{ detail }}</p>
+  <a class="btn btn-primary" href="/">Нүүр хуудас руу буцах</a>
+</div>
+{% endblock %}
+
+{% block anon %}
+<div class="login-wrap">
+  <div class="card center" style="max-width:420px">
+    {{ ic.icon('info', 46) }}
+    <h2>{{ code }}</h2>
+    <p class="muted">{{ detail }}</p>
+    <a class="btn btn-primary" href="/login">Нэвтрэх</a>
+  </div>
+</div>
+{% endblock %}

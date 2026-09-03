@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}{{ APP_NAME }}{% endblock %} · {{ APP_NAME }}</title>
+  <meta name="theme-color" content="#070912">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%2300e0a4'/><text x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' text-anchor='middle' fill='%23041018'>MP</text></svg>">
+  <link rel="stylesheet" href="/static/css/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% import "icons.html" as ic %}
+{% if flash %}<div class="flash {{ flash.level }}">{{ flash.message }}</div>{% endif %}
+
+{% if user %}
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/">
+      <span class="brand-mark">MP</span>
+      <span>
+        <span class="brand-name">{{ APP_NAME }}</span><br>
+        <span class="brand-sub">MONOS · Video Hub</span>
+      </span>
+    </a>
+
+    {% set p = request.url.path %}
+    {% if user.role == ROLE_ADMIN %}
+      <div class="nav-label">Аналитик</div>
+      <a class="nav-item {{ 'active' if p == '/dashboard' }}" href="/dashboard">{{ ic.icon('chart') }} Dashboard</a>
+      <div class="nav-label">Контент</div>
+      <a class="nav-item {{ 'active' if p.startswith('/admin/content') and p != '/admin/content/new' }}" href="/admin/content">{{ ic.icon('video') }} Контент удирдлага</a>
+      <a class="nav-item {{ 'active' if p == '/admin/content/new' }}" href="/admin/content/new">{{ ic.icon('upload') }} Шинэ контент</a>
+      <a class="nav-item {{ 'active' if p.startswith('/admin/distribute') }}" href="/admin/distribute">{{ ic.icon('send') }} Teams-руу тараах</a>
+      <div class="nav-label">Тохиргоо</div>
+      <a class="nav-item {{ 'active' if p.startswith('/admin/products') }}" href="/admin/products">{{ ic.icon('box') }} Бүтээгдэхүүн</a>
+      <a class="nav-item {{ 'active' if p.startswith('/admin/channels') }}" href="/admin/channels">{{ ic.icon('teams') }} Teams channel</a>
+      <a class="nav-item {{ 'active' if p.startswith('/admin/users') }}" href="/admin/users">{{ ic.icon('users') }} Хэрэглэгчид</a>
+      <div class="nav-label">Хувийн</div>
+    {% else %}
+      <div class="nav-label">Контент</div>
+    {% endif %}
+    <a class="nav-item {{ 'active' if p.startswith('/library') or p.startswith('/content') }}" href="/library">{{ ic.icon('grid') }} Контент сан</a>
+    <a class="nav-item {{ 'active' if p.startswith('/profile') }}" href="/profile">{{ ic.icon('user') }} Миний профайл</a>
+
+    <div class="sidebar-foot">
+      <a class="side-user" href="/profile">
+        <span class="avatar" style="--hue: {{ user.avatar_hue }}">{{ user.name[:2]|upper }}</span>
+        <span style="min-width:0">
+          <span class="side-user-name">{{ user.name }}</span><br>
+          <span class="side-user-role">{{ 'Admin' if user.role == ROLE_ADMIN else user.position or 'Viewer' }}</span>
+        </span>
+      </a>
+      <a class="nav-item" href="/logout">{{ ic.icon('logout') }} Гарах</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="btn btn-ghost btn-sm burger" aria-label="Цэс">{{ ic.icon('menu') }}</button>
+      <div>
+        <h1>{% block heading %}{{ self.title() }}{% endblock %}</h1>
+        <div class="sub">{% block subheading %}{{ APP_TAGLINE }}{% endblock %}</div>
+      </div>
+      <div class="topbar-actions">{% block actions %}{% endblock %}</div>
+    </header>
+    <main class="page">{% block content %}{% endblock %}</main>
+  </div>
+</div>
+{% else %}
+  {% block anon %}{% endblock %}
+{% endif %}
+
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

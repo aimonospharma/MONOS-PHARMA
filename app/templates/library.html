@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% from "_tile.html" import tile %}
+{% block title %}Контент сан{% endblock %}
+{% block heading %}Контент сан{% endblock %}
+{% block subheading %}Танд зориулсан видео, зураг, постер{% endblock %}
+
+{% block actions %}
+<a class="btn btn-ghost btn-sm" href="/profile">{{ ic.icon('award') }} {{ stats.views_total }} үзэлт</a>
+{% endblock %}
+
+{% block content %}
+
+{% if featured %}
+<div class="featured mb reveal">
+  {% if featured.thumb_path %}<img src="/thumb/{{ featured.id }}" alt="">{% endif %}
+  <div class="featured-body">
+    <div class="chips mb">
+      <span class="tag tag-bonus">{{ ic.icon('sparkle', 13) }} ОНЦЛОХ</span>
+      {% if featured.product_name %}
+        <span class="tag" style="color:{{ featured.product_color }};border-color:{{ featured.product_color }}66">
+          {{ featured.product_name }}
+        </span>
+      {% endif %}
+    </div>
+    <h2>{{ featured.title }}</h2>
+    <p class="muted small">{{ featured.description|truncate(150) }}</p>
+    <div class="row">
+      <a class="btn btn-primary" href="/content/{{ featured.id }}">
+        {{ ic.icon('play') }} {{ 'Үзэх' if featured.kind == 'video' else 'Нээх' }}
+      </a>
+      <span class="small dim">{{ ic.icon('eye', 13) }} {{ featured.views_total }} үзэлт ·
+        {{ featured.viewers_unique }} хүн · {{ featured.created_at|ago }}</span>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<form class="card mb" method="get" action="/library">
+  <div class="row">
+    <div style="flex:1;min-width:210px;position:relative">
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="Гарчиг, бүтээгдэхүүнээр хайх…">
+    </div>
+    <select name="product_id" data-autosubmit style="width:auto;min-width:170px">
+      <option value="">Бүх бүтээгдэхүүн</option>
+      {% for p in products %}
+        <option value="{{ p.id }}" {{ 'selected' if filters.product_id == p.id }}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="kind" data-autosubmit style="width:auto;min-width:130px">
+      <option value="">Бүх төрөл</option>
+      {% for k, label in KIND_LABELS.items() %}
+        <option value="{{ k }}" {{ 'selected' if filters.kind == k }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="sort" data-autosubmit style="width:auto;min-width:130px">
+      <option value="new" {{ 'selected' if filters.sort == 'new' }}>Шинэ эхэндээ</option>
+      <option value="popular" {{ 'selected' if filters.sort == 'popular' }}>Их үзсэн</option>
+    </select>
+    <button class="btn btn-primary btn-sm" type="submit">{{ ic.icon('search') }} Хайх</button>
+  </div>
+  <div class="chips mt">
+    <a class="chip {{ 'active' if not filters.section }}" href="/library">Бүгд</a>
+    <a class="chip {{ 'active' if filters.section == SECTION_BONUS }}" href="/library?section={{ SECTION_BONUS }}">
+      {{ ic.icon('sparkle', 13) }} {{ SECTION_SHORT[SECTION_BONUS] }}
+    </a>
+    <a class="chip {{ 'active' if filters.section == SECTION_OTHER }}" href="/library?section={{ SECTION_OTHER }}">
+      {{ SECTION_SHORT[SECTION_OTHER] }}
+    </a>
+  </div>
+</form>
+
+{% if bonus %}
+<div class="card-head mt">
+  <span class="stat-icon" style="--accent:#ffb020;margin:0">{{ ic.icon('sparkle') }}</span>
+  <div>
+    <h2>{{ SECTION_SHORT[SECTION_BONUS] }}</h2>
+    <div class="tiny dim">{{ SECTIONS[SECTION_BONUS] }}</div>
+  </div>
+  <span class="spacer tag tag-bonus">{{ bonus|length }} контент</span>
+</div>
+<div class="grid g-auto mb">
+  {% for item in bonus %}{{ tile(item, item.id in seen) }}{% endfor %}
+</div>
+{% endif %}
+
+{% if other %}
+<div class="card-head mt">
+  <span class="stat-icon" style="--accent:#17d1ff;margin:0">{{ ic.icon('video') }}</span>
+  <div>
+    <h2>{{ SECTION_SHORT[SECTION_OTHER] }}</h2>
+    <div class="tiny dim">Сургалт, танилцуулга, зөвлөмж</div>
+  </div>
+  <span class="spacer tag tag-other">{{ other|length }} контент</span>
+</div>
+<div class="grid g-auto">
+  {% for item in other %}{{ tile(item, item.id in seen) }}{% endfor %}
+</div>
+{% endif %}
+
+{% if not bonus and not other %}
+<div class="card empty">
+  {{ ic.icon('search', 46) }}
+  <h3>Илэрц олдсонгүй</h3>
+  <p class="small">Шүүлтүүрээ өөрчилж дахин оролдоно уу.</p>
+  <a class="btn btn-sm" href="/library">Бүх контент харах</a>
+</div>
+{% endif %}
+{% endblock %}

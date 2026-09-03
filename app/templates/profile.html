@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Профайл{% endblock %}
+{% block heading %}{{ target.name }}{% endblock %}
+{% block subheading %}{{ target.position or 'Ажилтан' }}{% if target.branch %} · {{ target.branch }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="card mb reveal" style="background:linear-gradient(120deg, rgba(0,224,164,.14), rgba(139,92,246,.16));">
+  <div class="row" style="gap:18px">
+    <span class="avatar avatar-lg" style="--hue:{{ target.avatar_hue }}">{{ target.name[:2]|upper }}</span>
+    <div style="min-width:0">
+      <h2 style="margin-bottom:2px">{{ target.name }}</h2>
+      <div class="small muted">{{ target.email }}</div>
+      <div class="row mt" style="gap:8px">
+        <span class="tier" style="color:{{ tier.color }};border-color:{{ tier.color }}66;background:{{ tier.color }}1a">
+          {{ ic.icon('award', 14) }} {{ tier.name }} viewer
+        </span>
+        <span class="tag">{{ ROLE_LABELS[target.role].split('(')[0] }}</span>
+        {% if target.source == 'microsoft' %}<span class="tag tag-other">Microsoft sync</span>{% endif %}
+      </div>
+    </div>
+    <div class="spacer row" style="gap:26px">
+      <div class="center">
+        <div class="stat-value" data-count="{{ stats.views_total }}">0</div>
+        <div class="tiny dim">Нийт үзэлт</div>
+      </div>
+      <div class="center">
+        <div class="stat-value" data-count="{{ stats.contents_total }}">0</div>
+        <div class="tiny dim">Үзсэн контент</div>
+      </div>
+      <div class="center">
+        <div class="stat-value" data-count="{{ stats.comments_total }}">0</div>
+        <div class="tiny dim">Сэтгэгдэл</div>
+      </div>
+      <div class="center">
+        <div class="stat-value" data-count="{{ (stats.watched / 60)|round(0, 'floor') }}" data-suffix=" мин">0</div>
+        <div class="tiny dim">Үзсэн хугацаа</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="grid" style="gap:16px">
+    <div class="card">
+      <div class="card-head">
+        <h2>Сүүлийн 30 хоногийн идэвх</h2>
+        <span class="spacer tag tag-ok">{{ stats.week_views }} үзэлт / 7 хоног</span>
+      </div>
+      <div class="chart-box sm"><canvas id="chartMe"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Үзсэн контентын түүх</h2>
+        <span class="spacer tiny dim">{{ history|length }} контент</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Контент</th><th>Бүтээгдэхүүн</th><th class="num">Удаа</th><th class="num">Хугацаа</th><th>Сүүлд үзсэн</th></tr>
+          </thead>
+          <tbody>
+            {% for h in history %}
+              <tr>
+                <td>
+                  <a class="row" href="/content/{{ h.id }}" style="gap:10px;flex-wrap:nowrap">
+                    <img src="/thumb/{{ h.id }}" alt="" loading="lazy"
+                         style="width:60px;height:34px;object-fit:cover;border-radius:8px;flex:0 0 60px">
+                    <span>
+                      <b class="small">{{ h.title|truncate(44) }}</b><br>
+                      <span class="tiny dim">{{ SECTION_SHORT[h.section] }} · {{ KIND_LABELS.get(h.kind, h.kind) }}</span>
+                    </span>
+                  </a>
+                </td>
+                <td class="small" style="color:{{ h.product_color }}">{{ h.product_name }}</td>
+                <td class="num"><b>{{ h.times }}</b></td>
+                <td class="num small dim">{{ h.watched|dur }}</td>
+                <td class="small dim nowrap">{{ h.last_seen|ago }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="5" class="center dim small" style="padding:30px">
+                Та одоогоор контент үзээгүй байна. <a href="/library" style="color:var(--brand)">Контент сан руу очих →</a>
+              </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <aside class="grid" style="gap:16px">
+    {% if target.id == user.id %}
+    <div class="card">
+      <div class="card-head"><h3>Профайл тохиргоо</h3></div>
+      <p class="tiny dim">Production дээр эдгээр талбар Microsoft contacts-аас автоматаар sync хийгдэнэ.</p>
+      <form method="post" action="/profile/update">
+        <label class="field"><span>Албан тушаал</span>
+          <input type="text" name="position" value="{{ target.position or '' }}"></label>
+        <label class="field"><span>Салбарын нэр</span>
+          <input type="text" name="branch" value="{{ target.branch or '' }}"></label>
+        <label class="field"><span>Хэлтэс</span>
+          <input type="text" name="department" value="{{ target.department or '' }}"></label>
+        <label class="field"><span>Утас</span>
+          <input type="text" name="phone" value="{{ target.phone or '' }}"></label>
+        <button class="btn btn-primary btn-block">{{ ic.icon('check') }} Хадгалах</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-head"><h3>Идэвхийн зэрэг</h3></div>
+      {% set next_tier = 50 if stats.views_total < 50 else 0 %}
+      <div class="row mb">
+        <span class="tier" style="color:{{ tier.color }};border-color:{{ tier.color }}66;background:{{ tier.color }}1a">
+          {{ ic.icon('award', 14) }} {{ tier.name }}
+        </span>
+        <span class="spacer tiny dim">{{ stats.views_total }} үзэлт</span>
+      </div>
+      {% if next_tier %}
+        {% set pct = (stats.views_total / next_tier * 100)|round(1) %}
+        <div class="progress"><i data-width="{{ pct }}" style="width:0"></i></div>
+        <div class="tiny dim mt" style="margin-top:8px">
+          Gold зэрэг хүртэл {{ next_tier - stats.views_total }} үзэлт үлдлээ.
+        </div>
+      {% else %}
+        <div class="small" style="color:{{ tier.color }}">Хамгийн дээд зэрэгт хүрсэн байна 🎉</div>
+      {% endif %}
+      <div class="tiny dim mt">Bronze 10 · Silver 25 · Gold 50 үзэлт</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Миний сэтгэгдлүүд</h3></div>
+      {% for c in my_comments %}
+        <div class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div style="min-width:0">
+            <a class="small" href="/content/{{ c.content_id }}#comments"><b>{{ c.content_title|truncate(38) }}</b></a>
+            <div class="tiny muted" style="white-space:pre-wrap">{{ c.body|truncate(90) }}</div>
+            <div class="tiny dim">{{ c.created_at|ago }}{% if c.rating %} · <span class="stars">{{ '★' * c.rating }}</span>{% endif %}</div>
+          </div>
+        </div>
+      {% else %}
+        <div class="empty small">Сэтгэгдэл бичээгүй байна.</div>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="chart-data" type="application/json">{{ trend|safe }}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="/static/js/charts.js"></script>
+{% endblock %}

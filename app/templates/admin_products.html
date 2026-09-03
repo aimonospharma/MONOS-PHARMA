@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Бүтээгдэхүүн{% endblock %}
+{% block heading %}Бүтээгдэхүүний ангилал{% endblock %}
+{% block subheading %}Контентыг бүтээгдэхүүнээр ангилах жагсаалт{% endblock %}
+
+{% block content %}
+<div class="split">
+  <div class="card">
+    <div class="card-head">
+      <h2>Бүтээгдэхүүнүүд</h2>
+      <span class="spacer tag">{{ products|length }}</span>
+    </div>
+    <div class="table-wrap">
+      <table style="min-width:640px">
+        <thead>
+          <tr><th>Нэр</th><th>Код</th><th>Чиглэл</th><th class="num">Контент</th><th class="num">Үзэлт</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for p in products %}
+            <tr>
+              <td>
+                <span class="row" style="gap:8px;flex-wrap:nowrap">
+                  <span class="dot" style="background:{{ p.color }}"></span>
+                  <b class="small">{{ p.name }}</b>
+                </span>
+              </td>
+              <td class="small dim">{{ p.code or '—' }}</td>
+              <td class="small dim">{{ p.line or '—' }}</td>
+              <td class="num">{{ p.content_count }}</td>
+              <td class="num"><b>{{ p.views_total }}</b></td>
+              <td>
+                <form method="post" action="/admin/products/{{ p.id }}/delete"
+                      data-confirm="'{{ p.name }}'-ийг устгах уу? Холбоотой контент 'ангилалгүй' болно.">
+                  <button class="btn btn-danger btn-sm">{{ ic.icon('trash', 14) }}</button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="center dim" style="padding:36px">Бүтээгдэхүүн бүртгэгдээгүй байна.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <aside class="grid" style="gap:16px">
+    <form class="card" method="post" action="/admin/products/import" enctype="multipart/form-data">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#00e0a4;margin:0">{{ ic.icon('sheet') }}</span>
+        <div><h3>Excel-ээр нэг дор оруулах</h3><div class="tiny dim">.xlsx эсвэл .csv</div></div>
+      </div>
+      <div class="dropzone" data-dropzone="excelFile">
+        {{ ic.icon('sheet', 36) }}
+        <strong>Excel файлаа чирж оруулна уу</strong>
+        <span class="small dim">1-р багана: нэр · 2-р: код · 3-р: чиглэл</span>
+      </div>
+      <input id="excelFile" type="file" name="file" hidden accept=".xlsx,.xlsm,.csv">
+      <div class="file-pill" data-fileinfo hidden></div>
+      <button class="btn btn-primary btn-block mt">{{ ic.icon('upload') }} Импорт хийх</button>
+      <a class="btn btn-ghost btn-block mt" href="/admin/products/template.csv">
+        {{ ic.icon('download') }} Загвар файл татах
+      </a>
+    </form>
+
+    <form class="card" method="post" action="/admin/products">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#8b5cf6;margin:0">{{ ic.icon('plus') }}</span>
+        <h3>Ганцаарчлан нэмэх</h3>
+      </div>
+      <label class="field"><span>Нэр *</span>
+        <input type="text" name="name" required placeholder="Ампилин"></label>
+      <label class="field"><span>Код</span>
+        <input type="text" name="code" placeholder="AMP"></label>
+      <label class="field"><span>Чиглэл</span>
+        <input type="text" name="line" placeholder="Антибиотик"></label>
+      <button class="btn btn-primary btn-block">{{ ic.icon('check') }} Нэмэх</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}

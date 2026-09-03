@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% from "_tile.html" import tile %}
+{% block title %}{{ item.title }}{% endblock %}
+{% block heading %}{{ item.title|truncate(56) }}{% endblock %}
+{% block subheading %}{{ SECTION_SHORT[item.section] }} · {{ KIND_LABELS.get(item.kind, item.kind) }}{% endblock %}
+
+{% block actions %}
+{% if item.file_path %}
+  <a class="btn btn-sm" href="/media/{{ item.id }}?download=1">{{ ic.icon('download') }} Татах</a>
+{% endif %}
+{% if user.role == ROLE_ADMIN %}
+  <a class="btn btn-sm" href="/admin/content/{{ item.id }}/edit">{{ ic.icon('edit') }} Засах</a>
+  <a class="btn btn-violet btn-sm" href="/admin/distribute?content_id={{ item.id }}">{{ ic.icon('send') }} Тараах</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="split">
+  <div>
+    <div class="player mb">
+      {% if item.file_path and item.kind == 'video' %}
+        <video controls preload="metadata" data-view-id="{{ view_id }}"
+               poster="{{ '/thumb/' ~ item.id if item.thumb_path }}">
+          <source src="/media/{{ item.id }}" type="{{ item.mime or 'video/mp4' }}">
+          Таны браузер видео тоглуулагчийг дэмжихгүй байна.
+        </video>
+      {% elif item.file_path and item.kind in ('image', 'poster') %}
+        <img src="/media/{{ item.id }}" alt="{{ item.title }}" data-still-view="{{ view_id }}">
+      {% elif item.file_path %}
+        <div class="player-fallback" data-still-view="{{ view_id }}">
+          {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="">{% endif %}
+          <div class="player-note">
+            {{ ic.icon('file', 34) }}
+            <b>{{ item.file_name }}</b>
+            <a class="btn btn-primary btn-sm" href="/media/{{ item.id }}">Файл нээх</a>
+          </div>
+        </div>
+      {% else %}
+        <div class="player-fallback" data-still-view="{{ view_id }}">
+          {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="">{% endif %}
+          <div class="player-note">
+            {{ ic.icon('video', 34) }}
+            <b>Demo контент</b>
+            <span class="small dim">Файл хавсаргаагүй — зөвхөн үзүүлэн загвар.</span>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card mb">
+      <div class="row mb">
+        <span class="tag {{ 'tag-bonus' if item.section == SECTION_BONUS else 'tag-other' }}">
+          {{ SECTION_SHORT[item.section] }}
+        </span>
+        {% if item.product_name %}
+          <span class="tag" style="color:{{ item.product_color }};border-color:{{ item.product_color }}66">
+            <span class="dot" style="background:{{ item.product_color }}"></span>{{ item.product_name }}
+          </span>
+        {% endif %}
+        {% for t in tags %}<span class="tag">{{ ic.icon('hash', 11) }}{{ t }}</span>{% endfor %}
+        <span class="spacer small dim">{{ ic.icon('calendar', 13) }} {{ item.publish_date|d }}</span>
+      </div>
+      <h2>{{ item.title }}</h2>
+      <p class="muted" style="white-space:pre-wrap">{{ item.description or 'Тайлбар оруулаагүй.' }}</p>
+      <div class="row small dim mt">
+        <span>{{ ic.icon('eye', 14) }} {{ item.views_total|num }} үзэлт</span>
+        <span>{{ ic.icon('users', 14) }} {{ item.viewers_unique|num }} хүн</span>
+        <span>{{ ic.icon('comment', 14) }} {{ item.comments_total|num }} сэтгэгдэл</span>
+        {% if item.size_bytes %}<span>{{ ic.icon('file', 14) }} {{ item.size_bytes|size }}</span>{% endif %}
+        <span>{{ ic.icon('user', 14) }} {{ item.author_name or '—' }}</span>
+      </div>
+    </div>
+
+    <div class="card" id="comments">
+      <div class="card-head">
+        <h2>Санал хүсэлт</h2>
+        <span class="spacer tag">{{ comments|length }}</span>
+      </div>
+
+      <form method="post" action="/content/{{ item.id }}/comment">
+        <label class="field">
+          <span>Таны сэтгэгдэл</span>
+          <textarea name="body" required placeholder="Контентын талаарх санал, асуулт, сайжруулах зөвлөмжөө бичнэ үү…"></textarea>
+        </label>
+        <div class="row">
+          <select name="rating" style="width:auto">
+            <option value="">Үнэлгээ (сонголт)</option>
+            {% for r in [5,4,3,2,1] %}<option value="{{ r }}">{{ '★' * r }}</option>{% endfor %}
+          </select>
+          <button class="btn btn-primary" type="submit">{{ ic.icon('send') }} Илгээх</button>
+        </div>
+      </form>
+
+      <div class="mt">
+        {% for c in comments %}
+          <div class="comment">
+            <span class="avatar" style="--hue:{{ c.avatar_hue }}">{{ c.user_name[:2]|upper }}</span>
+            <div class="comment-body">
+              <div class="row" style="gap:8px">
+                <b>{{ c.user_name }}</b>
+                <span class="tiny dim">{{ c.position or '' }}{% if c.branch %} · {{ c.branch }}{% endif %}</span>
+                {% if c.rating %}<span class="stars">{{ '★' * c.rating }}</span>{% endif %}
+                <span class="spacer tiny dim">{{ c.created_at|ago }}</span>
+                {% if c.user_id == user.id or user.role == ROLE_ADMIN %}
+                  <form method="post" action="/comment/{{ c.id }}/delete" data-confirm="Сэтгэгдлийг устгах уу?">
+                    <button class="btn btn-ghost btn-sm" title="Устгах">{{ ic.icon('trash', 13) }}</button>
+                  </form>
+                {% endif %}
+              </div>
+              <div class="small" style="white-space:pre-wrap">{{ c.body }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="empty">{{ ic.icon('comment', 44) }}<p class="small">Эхний сэтгэгдлийг та бичнэ үү.</p></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <aside class="grid" style="gap:16px">
+    <div class="card">
+      <div class="card-head"><h3>Таны түүх</h3></div>
+      <div class="row" style="gap:18px">
+        <div>
+          <div class="stat-value" style="font-size:1.5rem" data-count="{{ my_views }}">0</div>
+          <div class="tiny dim">Та үзсэн удаа</div>
+        </div>
+        <div>
+          <div class="stat-value" style="font-size:1.5rem" data-count="{{ item.viewers_unique }}">0</div>
+          <div class="tiny dim">Нийт үзсэн хүн</div>
+        </div>
+      </div>
+      {% if item.duration_sec %}
+        <div class="small dim mt">{{ ic.icon('clock', 13) }} Үргэлжлэх хугацаа: {{ item.duration_sec|dur }}</div>
+      {% endif %}
+    </div>
+
+    {% if distributions %}
+    <div class="card">
+      <div class="card-head"><h3>Түгээлтийн түүх</h3></div>
+      {% for d in distributions %}
+        <div class="timeline-item">
+          <span class="timeline-dot" style="{{ 'background:#ffb020;box-shadow:0 0 0 4px rgba(255,176,32,.15)' if d.status == 'scheduled' }}"></span>
+          <div style="min-width:0;flex:1">
+            <div class="small"><b>{{ d.channel_name }}</b></div>
+            <div class="tiny dim">
+              {{ 'Илгээсэн' if d.status == 'sent' else 'Төлөвлөсөн' }}:
+              {{ (d.sent_at or d.scheduled_at)|dt }}
+            </div>
+            {% if d.channel_link %}
+              <a class="tiny" style="color:var(--brand-2)" href="{{ d.channel_link }}" target="_blank" rel="noopener">
+                {{ ic.icon('link', 11) }} Teams-д нээх</a>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if related %}
+    <div class="card">
+      <div class="card-head"><h3>Холбоотой контент</h3></div>
+      <div class="grid" style="gap:10px">
+        {% for r in related %}
+          <a class="row" href="/content/{{ r.id }}" style="gap:10px;flex-wrap:nowrap">
+            <img src="/thumb/{{ r.id }}" alt="" loading="lazy"
+                 style="width:76px;height:44px;object-fit:cover;border-radius:9px;flex:0 0 76px">
+            <span style="min-width:0">
+              <span class="small" style="font-weight:600;display:block">{{ r.title|truncate(46) }}</span>
+              <span class="tiny dim">{{ r.views_total }} үзэлт · {{ r.created_at|ago }}</span>
+            </span>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

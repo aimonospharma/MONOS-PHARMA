@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Контент удирдлага{% endblock %}
+{% block heading %}Контент удирдлага{% endblock %}
+{% block subheading %}Байршуулсан бүх видео, зураг, постер{% endblock %}
+
+{% block actions %}
+<a class="btn btn-primary btn-sm" href="/admin/content/new">{{ ic.icon('upload') }} Шинэ контент</a>
+{% endblock %}
+
+{% block content %}
+<form class="card mb" method="get" action="/admin/content">
+  <div class="row">
+    <div style="flex:1;min-width:200px">
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="Гарчиг, бүтээгдэхүүнээр хайх…">
+    </div>
+    <select name="section" data-autosubmit style="width:auto;min-width:200px">
+      <option value="">Бүх хэсэг</option>
+      <option value="{{ SECTION_BONUS }}" {{ 'selected' if filters.section == SECTION_BONUS }}>{{ SECTION_SHORT[SECTION_BONUS] }}</option>
+      <option value="{{ SECTION_OTHER }}" {{ 'selected' if filters.section == SECTION_OTHER }}>{{ SECTION_SHORT[SECTION_OTHER] }}</option>
+    </select>
+    <select name="status" data-autosubmit style="width:auto;min-width:150px">
+      <option value="">Бүх статус</option>
+      <option value="published" {{ 'selected' if filters.status == 'published' }}>Нийтлэгдсэн</option>
+      <option value="draft" {{ 'selected' if filters.status == 'draft' }}>Ноорог</option>
+    </select>
+    <button class="btn btn-primary btn-sm">{{ ic.icon('search') }} Хайх</button>
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Контентын жагсаалт</h2>
+    <span class="spacer tag">{{ items|length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table style="min-width:900px">
+      <thead>
+        <tr>
+          <th>Контент</th><th>Хэсэг</th><th>Бүтээгдэхүүн</th>
+          <th class="num">Үзэлт</th><th class="num">Хүн</th><th class="num">Сэтгэгдэл</th>
+          <th>Түгээлт</th><th>Статус</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in items %}
+          <tr>
+            <td>
+              <a class="row" href="/content/{{ c.id }}" style="gap:11px;flex-wrap:nowrap">
+                <img src="/thumb/{{ c.id }}" alt="" loading="lazy"
+                     style="width:74px;height:42px;object-fit:cover;border-radius:9px;flex:0 0 74px">
+                <span style="min-width:0">
+                  <b class="small">{{ c.title|truncate(52) }}</b><br>
+                  <span class="tiny dim">{{ KIND_LABELS.get(c.kind, c.kind) }} ·
+                    {{ c.size_bytes|size if c.size_bytes else 'файлгүй' }} · {{ c.created_at|d }}</span>
+                </span>
+              </a>
+            </td>
+            <td><span class="tag {{ 'tag-bonus' if c.section == SECTION_BONUS else 'tag-other' }}">
+              {{ 'Бонус' if c.section == SECTION_BONUS else 'Бусад' }}</span></td>
+            <td class="small" style="color:{{ c.product_color or '#94a2c6' }}">{{ c.product_name or '—' }}</td>
+            <td class="num"><b>{{ c.views_total }}</b></td>
+            <td class="num">{{ c.viewers_unique }}</td>
+            <td class="num">{{ c.comments_total }}</td>
+            <td class="small nowrap">
+              {% if c.sent_count %}<span class="tag tag-ok">{{ c.sent_count }} илгээсэн</span>{% endif %}
+              {% if c.scheduled_count %}<span class="tag tag-warn">{{ c.scheduled_count }} төлөвлөсөн</span>{% endif %}
+              {% if not c.sent_count and not c.scheduled_count %}<span class="dim tiny">Тараагаагүй</span>{% endif %}
+            </td>
+            <td><span class="tag {{ 'tag-ok' if c.status == 'published' else 'tag-warn' }}">
+              {{ 'Нийтлэгдсэн' if c.status == 'published' else 'Ноорог' }}</span></td>
+            <td>
+              <div class="row nowrap" style="gap:5px;flex-wrap:nowrap">
+                <a class="btn btn-ghost btn-sm" href="/admin/distribute?content_id={{ c.id }}" title="Teams-руу тараах">{{ ic.icon('send', 14) }}</a>
+                <a class="btn btn-ghost btn-sm" href="/admin/content/{{ c.id }}/edit" title="Засах">{{ ic.icon('edit', 14) }}</a>
+                <form method="post" action="/admin/content/{{ c.id }}/delete"
+                      data-confirm="'{{ c.title }}' контентыг устгах уу? Үзэлтийн түүх мөн устна.">
+                  <button class="btn btn-danger btn-sm" title="Устгах">{{ ic.icon('trash', 14) }}</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9" class="center dim" style="padding:40px">
+            Контент байхгүй байна. <a href="/admin/content/new" style="color:var(--brand)">Эхний контентоо байршуулах →</a>
+          </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

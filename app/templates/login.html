@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Нэвтрэх{% endblock %}
+
+{% block anon %}
+<div class="login-wrap">
+  <div class="login-card reveal">
+    <div class="login-hero">
+      <div class="brand" style="padding-left:0">
+        <span class="brand-mark">MP</span>
+        <span>
+          <span class="brand-name">{{ APP_NAME }}</span><br>
+          <span class="brand-sub">MONOS · Video Hub</span>
+        </span>
+      </div>
+      <h2 style="font-size:1.6rem;position:relative;z-index:2">Видео контентоо Teams-ээр хүргэ,<br>үр дүнг нь бодит цагт хэмж.</h2>
+      <p class="muted" style="position:relative;z-index:2">
+        1000+ жор баригч, эмийн мэргэжилтэнд зориулсан контент түгээлтийн нэгдсэн платформ.
+      </p>
+      <div class="login-feature">{{ ic.icon('upload') }}<div><b>Нэг дороос байршуулалт</b><div class="small muted">Видео, зураг, постерыг drag &amp; drop-оор.</div></div></div>
+      <div class="login-feature">{{ ic.icon('send') }}<div><b>Олон Teams channel</b><div class="small muted">Нэг товчоор олон групп рүү зэрэг илгээх.</div></div></div>
+      <div class="login-feature">{{ ic.icon('chart') }}<div><b>Бодит цагийн хэмжилт</b><div class="small muted">Хэн, юуг, хэдэн удаа үзсэн — бүгд нэг dashboard дээр.</div></div></div>
+    </div>
+
+    <div class="login-form">
+      <h2>Нэвтрэх</h2>
+      <p class="small muted">Компанийн <b>@{{ COMPANY_DOMAIN }}</b> хаягаараа нэгдэнэ үү.</p>
+
+      <div class="grid" style="gap:8px;margin-top:18px">
+        {% for acc in ms_accounts %}
+          <a class="btn {{ 'btn-ms' if loop.first else '' }} btn-block"
+             href="/auth/microsoft?email={{ acc.email }}&next={{ next }}"
+             style="{{ '' if loop.first else 'justify-content:flex-start' }}">
+            {% if loop.first %}
+              <svg width="16" height="16" viewBox="0 0 23 23" aria-hidden="true"><rect width="10" height="10" fill="#f25022"/><rect x="12" width="10" height="10" fill="#7fba00"/><rect y="12" width="10" height="10" fill="#00a4ef"/><rect x="12" y="12" width="10" height="10" fill="#ffb900"/></svg>
+              Sign in with Microsoft
+            {% else %}
+              <span class="avatar avatar-sm" style="--hue:{{ loop.index * 70 }}">{{ acc.name[:2]|upper }}</span>
+              <span style="text-align:left"><b>{{ acc.name }}</b><br><span class="tiny dim">{{ acc.position }} · {{ acc.branch }}</span></span>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </div>
+      <p class="tiny dim mt" style="margin-top:10px">
+        Demo горим: Microsoft SSO-г дуурайлган нэвтрүүлнэ. Production дээр Azure AD (Entra ID) OAuth2
+        + Microsoft Graph-аар албан тушаал, салбарын нэрийг sync хийнэ.
+      </p>
+
+      <div class="divider">эсвэл mock / demo горимоор</div>
+
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label class="field">
+          <span>Мэйл хаяг</span>
+          <input type="text" name="email" placeholder="ner.o@{{ COMPANY_DOMAIN }}" required autofocus>
+        </label>
+        <label class="field">
+          <span>Нэр</span>
+          <input type="text" name="name" placeholder="О. Нэр">
+        </label>
+        <label class="field">
+          <span>Эрх (demo)</span>
+          <select name="role">
+            <option value="{{ ROLE_VIEWER }}">{{ ROLE_LABELS[ROLE_VIEWER] }}</option>
+            <option value="{{ ROLE_ADMIN }}">{{ ROLE_LABELS[ROLE_ADMIN] }}</option>
+          </select>
+        </label>
+        <button class="btn btn-primary btn-block" type="submit">{{ ic.icon('bolt') }} Нэвтрэх</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

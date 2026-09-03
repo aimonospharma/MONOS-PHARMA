@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Хэрэглэгчид{% endblock %}
+{% block heading %}Хэрэглэгчид{% endblock %}
+{% block subheading %}Ажилтнуудын эрх, идэвхийн үзүүлэлт{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>Бүртгэлтэй хэрэглэгчид</h2>
+    <span class="spacer tag">{{ users|length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table style="min-width:900px">
+      <thead>
+        <tr><th>Хэрэглэгч</th><th>Албан тушаал</th><th>Салбар</th>
+            <th class="num">Үзэлт</th><th class="num">Сэтгэгдэл</th><th>Зэрэг</th>
+            <th>Сүүлд үзсэн</th><th>Эрх</th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          {% set t = tier_for(u.views_total) %}
+          <tr>
+            <td>
+              <a class="row" href="/profile/{{ u.id }}" style="gap:10px;flex-wrap:nowrap">
+                <span class="avatar avatar-sm" style="--hue:{{ u.avatar_hue }}">{{ u.name[:2]|upper }}</span>
+                <span><b class="small">{{ u.name }}</b><br><span class="tiny dim">{{ u.email }}</span></span>
+              </a>
+            </td>
+            <td class="small">{{ u.position or '—' }}</td>
+            <td class="small dim">{{ u.branch or '—' }}</td>
+            <td class="num"><b>{{ u.views_total }}</b></td>
+            <td class="num">{{ u.comments_total }}</td>
+            <td>
+              <span class="tier" style="color:{{ t.color }};border-color:{{ t.color }}55;background:{{ t.color }}18">
+                {{ t.name }}
+              </span>
+            </td>
+            <td class="small dim nowrap">{{ u.last_view|ago }}</td>
+            <td>
+              <form method="post" action="/admin/users/{{ u.id }}/role" class="row" style="gap:6px;flex-wrap:nowrap">
+                <select name="role" style="width:auto;padding:5px 9px;font-size:.78rem">
+                  <option value="{{ ROLE_VIEWER }}" {{ 'selected' if u.role == ROLE_VIEWER }}>Viewer</option>
+                  <option value="{{ ROLE_ADMIN }}" {{ 'selected' if u.role == ROLE_ADMIN }}>Admin</option>
+                </select>
+                <button class="btn btn-sm">{{ ic.icon('check', 13) }}</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt">
+  <div class="card-head">
+    <span class="stat-icon" style="--accent:#17d1ff;margin:0">{{ ic.icon('info') }}</span>
+    <h3>Microsoft contacts sync</h3>
+  </div>
+  <p class="small muted">
+    Production дээр ажилтны <b>албан тушаал</b>, <b>салбарын нэр</b> нь Microsoft Entra ID /
+    Graph API-аас автоматаар татагдана (<code>GET /users?$select=displayName,mail,jobTitle,officeLocation,department</code>).
+    Prototype горимд эдгээрийг хэрэглэгч өөрөө профайл дээрээ засах боломжтой.
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Dashboard{% endblock %}
+{% block heading %}Хэмжилтийн Dashboard{% endblock %}
+{% block subheading %}Хандалт, үзэлт, оролцооны бодит цагийн зураглал{% endblock %}
+
+{% block actions %}
+<a class="btn btn-sm" href="/dashboard/export.csv?{{ request.url.query }}">{{ ic.icon('download') }} Тайлан татах</a>
+<a class="btn btn-primary btn-sm" href="/admin/content/new">{{ ic.icon('plus') }} Шинэ контент</a>
+{% endblock %}
+
+{% block content %}
+
+<form class="card mb" method="get" action="/dashboard">
+  <div class="row">
+    <span class="tag">{{ ic.icon('filter', 13) }} Шүүлтүүр</span>
+    <label class="field" style="margin:0">
+      <span>Эхлэх огноо</span>
+      <input type="date" name="date_from" value="{{ f.date_from or '' }}">
+    </label>
+    <label class="field" style="margin:0">
+      <span>Дуусах огноо</span>
+      <input type="date" name="date_to" value="{{ f.date_to or '' }}">
+    </label>
+    <label class="field" style="margin:0;min-width:180px">
+      <span>Бүтээгдэхүүн</span>
+      <select name="product_id">
+        <option value="">Бүгд</option>
+        {% for p in products %}
+          <option value="{{ p.id }}" {{ 'selected' if f.product_id == p.id }}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field" style="margin:0;min-width:190px">
+      <span>Teams channel</span>
+      <select name="channel_id">
+        <option value="">Бүгд</option>
+        {% for c in channels %}
+          <option value="{{ c.id }}" {{ 'selected' if f.channel_id == c.id }}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field" style="margin:0;min-width:150px">
+      <span>Хэсэг</span>
+      <select name="section">
+        <option value="">Бүгд</option>
+        <option value="{{ SECTION_BONUS }}" {{ 'selected' if f.section == SECTION_BONUS }}>{{ SECTION_SHORT[SECTION_BONUS] }}</option>
+        <option value="{{ SECTION_OTHER }}" {{ 'selected' if f.section == SECTION_OTHER }}>{{ SECTION_SHORT[SECTION_OTHER] }}</option>
+      </select>
+    </label>
+    <label class="field" style="margin:0;min-width:130px">
+      <span>Трэнд</span>
+      <select name="days">
+        {% for d in [7, 14, 30, 60, 90] %}
+          <option value="{{ d }}" {{ 'selected' if days == d }}>Сүүлийн {{ d }} хоног</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div style="align-self:flex-end;display:flex;gap:8px">
+      <button class="btn btn-primary" type="submit">Хэрэглэх</button>
+      <a class="btn btn-ghost" href="/dashboard">Цэвэрлэх</a>
+    </div>
+  </div>
+</form>
+
+<div class="grid g-4 mb">
+  <div class="stat" style="--accent:#00e0a4">
+    <div class="stat-icon">{{ ic.icon('eye') }}</div>
+    <div class="stat-value" data-count="{{ kpi.views_total }}">0</div>
+    <div class="stat-label">Нийт үзэлт</div>
+    <div class="stat-delta">{{ kpi.contents_viewed }} контент дээр бүртгэгдсэн</div>
+  </div>
+  <div class="stat" style="--accent:#17d1ff">
+    <div class="stat-icon">{{ ic.icon('users') }}</div>
+    <div class="stat-value" data-count="{{ kpi.viewers_unique }}">0</div>
+    <div class="stat-label">Үзсэн хүн (unique)</div>
+    <div class="stat-delta">Хамрах хүрээ <b>{{ kpi.reach_pct }}%</b> ({{ kpi.viewers_total }} ажилтнаас)</div>
+  </div>
+  <div class="stat" style="--accent:#8b5cf6">
+    <div class="stat-icon">{{ ic.icon('clock') }}</div>
+    <div class="stat-value" data-count="{{ kpi.watch_hours }}" data-decimals="1" data-suffix=" ц">0</div>
+    <div class="stat-label">Нийт үзсэн хугацаа</div>
+    <div class="stat-delta">Дуустал үзсэн <b>{{ kpi.completion_rate }}%</b></div>
+  </div>
+  <div class="stat" style="--accent:#ffb020">
+    <div class="stat-icon">{{ ic.icon('send') }}</div>
+    <div class="stat-value" data-count="{{ kpi.sent_total }}">0</div>
+    <div class="stat-label">Teams-руу илгээсэн</div>
+    <div class="stat-delta">{{ kpi.scheduled_total }} төлөвлөгдсөн · {{ kpi.channels_total }} channel</div>
+  </div>
+</div>
+
+<div class="grid g-4 mb">
+  <div class="stat" style="--accent:#ff4d94">
+    <div class="stat-icon">{{ ic.icon('video') }}</div>
+    <div class="stat-value" data-count="{{ kpi.contents_total }}">0</div>
+    <div class="stat-label">Нийт контент</div>
+    <div class="stat-delta">{{ kpi.published_total }} нийтлэгдсэн</div>
+  </div>
+  <div class="stat" style="--accent:#00e0a4">
+    <div class="stat-icon">{{ ic.icon('comment') }}</div>
+    <div class="stat-value" data-count="{{ kpi.comments_total }}">0</div>
+    <div class="stat-label">Санал хүсэлт</div>
+    <div class="stat-delta">Хэрэглэгчдээс ирсэн сэтгэгдэл</div>
+  </div>
+  <div class="stat" style="--accent:#17d1ff">
+    <div class="stat-icon">{{ ic.icon('teams') }}</div>
+    <div class="stat-value" data-count="{{ kpi.channels_total }}">0</div>
+    <div class="stat-label">Идэвхтэй channel</div>
+    <div class="stat-delta">Түгээлтийн суваг</div>
+  </div>
+  <div class="stat" style="--accent:#8b5cf6">
+    <div class="stat-icon">{{ ic.icon('trend') }}</div>
+    <div class="stat-value" data-count="{{ (kpi.views_total / kpi.viewers_unique) if kpi.viewers_unique else 0 }}" data-decimals="1">0</div>
+    <div class="stat-label">Нэг хүнд ногдох үзэлт</div>
+    <div class="stat-delta">Давтан үзэлтийн үзүүлэлт</div>
+  </div>
+</div>
+
+<div class="grid g-3 mb">
+  <div class="card span-2">
+    <div class="card-head">
+      <h2>Үзэлтийн трэнд</h2>
+      <span class="spacer tiny dim">Сүүлийн {{ days }} хоног</span>
+    </div>
+    <div class="chart-box"><canvas id="chartTrend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Хэсгийн харьцаа</h2></div>
+    <div class="chart-box"><canvas id="chartSection"></canvas></div>
+  </div>
+</div>
+
+<div class="grid g-2 mb">
+  <div class="card">
+    <div class="card-head">
+      <h2>Бүтээгдэхүүнээр</h2>
+      <span class="spacer tiny dim">Хамгийн их үзэгдсэн ТОП 10</span>
+    </div>
+    <div class="chart-box"><canvas id="chartProduct"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Teams channel-аар</h2></div>
+    <div class="chart-box"><canvas id="chartChannel"></canvas></div>
+  </div>
+</div>
+
+<div class="grid g-3 mb">
+  <div class="card span-2">
+    <div class="card-head">
+      <h2>Хэрэглэгч × бүтээгдэхүүн</h2>
+      <span class="spacer tiny dim">Аль хэрэглэгч аль бүтээгдэхүүнийг их үзсэн</span>
+    </div>
+    <div id="matrixBox"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Өдрийн идэвх</h2></div>
+    <div class="chart-box"><canvas id="chartHourly"></canvas></div>
+  </div>
+</div>
+
+<div class="grid g-2 mb">
+  <div class="card">
+    <div class="card-head"><h2>ТОП контент</h2></div>
+    <div class="grid" style="gap:12px">
+      {% for c in top_contents %}
+        {% set pct = (c.views / top_contents[0].views * 100) if top_contents[0].views else 0 %}
+        <a class="row" href="/content/{{ c.id }}" style="gap:12px;flex-wrap:nowrap">
+          <span class="dim tiny" style="width:16px">{{ loop.index }}</span>
+          <img src="/thumb/{{ c.id }}" alt="" loading="lazy"
+               style="width:72px;height:41px;object-fit:cover;border-radius:9px;flex:0 0 72px">
+          <span style="flex:1;min-width:0">
+            <span class="small" style="font-weight:600;display:block">{{ c.title|truncate(48) }}</span>
+            <span class="tiny" style="color:{{ c.product_color }}">{{ c.product_name }}</span>
+            <span class="progress" style="margin-top:5px"><i data-width="{{ pct|round(1) }}" style="width:0;background:linear-gradient(90deg,{{ c.product_color }},#17d1ff)"></i></span>
+          </span>
+          <span class="nowrap" style="text-align:right">
+            <b>{{ c.views }}</b><br><span class="tiny dim">{{ c.viewers }} хүн</span>
+          </span>
+        </a>
+      {% else %}
+        <div class="empty small">Өгөгдөл алга.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Хамгийн идэвхтэй хэрэглэгчид</h2>
+      <a class="spacer btn btn-ghost btn-sm" href="/admin/users">Бүгд</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Хэрэглэгч</th><th>Дуртай бүтээгдэхүүн</th><th class="num">Үзэлт</th><th class="num">Сэтгэгдэл</th></tr>
+        </thead>
+        <tbody>
+          {% for u in top_users %}
+            <tr>
+              <td>
+                <a class="row" href="/profile/{{ u.id }}" style="gap:9px;flex-wrap:nowrap">
+                  <span class="avatar avatar-sm" style="--hue:{{ u.avatar_hue }}">{{ u.name[:2]|upper }}</span>
+                  <span><b class="small">{{ u.name }}</b><br><span class="tiny dim">{{ u.branch or '—' }}</span></span>
+                </a>
+              </td>
+              <td class="small">{{ u.fav_product }}</td>
+              <td class="num"><b>{{ u.views }}</b></td>
+              <td class="num">{{ u.comments_total }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="center dim small">Өгөгдөл алга.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Сүүлийн түгээлтүүд</h2>
+    <a class="spacer btn btn-ghost btn-sm" href="/admin/distribute">Түгээлтийн хуудас</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Контент</th><th>Channel</th><th>Статус</th><th>Огноо</th><th>Илгээсэн</th></tr></thead>
+      <tbody>
+        {% for d in recent %}
+          <tr>
+            <td class="small"><a href="/content/{{ d.content_id }}"><b>{{ d.content_title|truncate(42) }}</b></a></td>
+            <td class="small">{{ d.channel_name }}</td>
+            <td><span class="tag {{ 'tag-ok' if d.status == 'sent' else 'tag-warn' }}">
+              {{ 'Илгээгдсэн' if d.status == 'sent' else 'Төлөвлөгдсөн' }}</span></td>
+            <td class="small dim">{{ (d.sent_at or d.scheduled_at)|dt }}</td>
+            <td class="small dim">{{ d.sender or '—' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="center dim small">Түгээлт бүртгэгдээгүй.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="chart-data" type="application/json">{{ charts|safe }}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="/static/js/charts.js"></script>
+{% endblock %}
