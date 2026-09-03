@@ -602,6 +602,19 @@ def products_template(request: Request):
                              headers={"content-disposition": 'attachment; filename="products-template.csv"'})
 
 
+@app.post("/admin/products/{pid}/edit")
+def admin_product_edit(request: Request, pid: int, name: str = Form(...),
+                       code: str = Form(""), line: str = Form(""), color: str = Form("")):
+    auth.require_admin(request)
+    if not repo.get_product(pid):
+        raise HTTPException(404, "Бүтээгдэхүүн олдсонгүй.")
+    if repo.update_product(pid, name, code, line, color):
+        flash(request, f"'{name.strip()}' шинэчлэгдлээ.")
+    else:
+        flash(request, "Нэр хоосон эсвэл өөр бүтээгдэхүүнтэй давхардаж байна.", "error")
+    return RedirectResponse("/admin/products", status_code=303)
+
+
 @app.post("/admin/products/{pid}/delete")
 def admin_product_delete(request: Request, pid: int):
     auth.require_admin(request)

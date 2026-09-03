@@ -18,7 +18,7 @@
         </thead>
         <tbody>
           {% for p in products %}
-            <tr>
+            <tr data-prow="{{ p.id }}">
               <td>
                 <span class="row" style="gap:8px;flex-wrap:nowrap">
                   <span class="dot" style="background:{{ p.color }}"></span>
@@ -30,10 +30,46 @@
               <td class="num">{{ p.content_count }}</td>
               <td class="num"><b>{{ p.views_total }}</b></td>
               <td>
-                <form method="post" action="/admin/products/{{ p.id }}/delete"
-                      data-confirm="'{{ p.name }}'-ийг устгах уу? Холбоотой контент 'ангилалгүй' болно.">
-                  <button class="btn btn-danger btn-sm">{{ ic.icon('trash', 14) }}</button>
+                <div class="row nowrap" style="gap:5px;flex-wrap:nowrap">
+                  <button type="button" class="btn btn-ghost btn-sm" data-pedit="{{ p.id }}" title="Засах">
+                    {{ ic.icon('edit', 14) }}
+                  </button>
+                  <form method="post" action="/admin/products/{{ p.id }}/delete"
+                        data-confirm="'{{ p.name }}'-ийг устгах уу? Холбоотой контент 'ангилалгүй' болно.">
+                    <button class="btn btn-danger btn-sm" title="Устгах">{{ ic.icon('trash', 14) }}</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <tr data-pform="{{ p.id }}" hidden>
+              <td colspan="6" style="background:rgba(0,224,164,.05)">
+                <form method="post" action="/admin/products/{{ p.id }}/edit"
+                      class="row" style="gap:10px;align-items:flex-end">
+                  <label class="field" style="margin:0;flex:2;min-width:170px">
+                    <span>Нэр *</span>
+                    <input type="text" name="name" value="{{ p.name }}" required>
+                  </label>
+                  <label class="field" style="margin:0;flex:1;min-width:110px">
+                    <span>Код</span>
+                    <input type="text" name="code" value="{{ p.code or '' }}">
+                  </label>
+                  <label class="field" style="margin:0;flex:1.4;min-width:130px">
+                    <span>Чиглэл</span>
+                    <input type="text" name="line" value="{{ p.line or '' }}">
+                  </label>
+                  <label class="field" style="margin:0;width:70px">
+                    <span>Өнгө</span>
+                    <input type="color" name="color" value="{{ p.color }}">
+                  </label>
+                  <span class="row nowrap" style="gap:6px;flex-wrap:nowrap">
+                    <button class="btn btn-primary btn-sm">{{ ic.icon('check', 14) }} Хадгалах</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-pcancel="{{ p.id }}">Болих</button>
+                  </span>
                 </form>
+                <div class="tiny dim" style="margin-top:8px">
+                  {{ ic.icon('info', 11) }} Өнгө нь dashboard-ын график, контентын шошгонд хэрэглэгдэнэ.
+                  Нэр солиход холбоотой {{ p.content_count }} контент шинэ нэрээр харагдана.
+                </div>
               </td>
             </tr>
           {% else %}

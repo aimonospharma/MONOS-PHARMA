@@ -165,6 +165,42 @@
     });
   });
 
+  /* ------------------------- бүтээгдэхүүний мөрийг засварын горимд оруулах */
+  function toggleProductRow(id, editing) {
+    var row = document.querySelector('[data-prow="' + id + '"]');
+    var form = document.querySelector('[data-pform="' + id + '"]');
+    if (!row || !form) return;
+    row.hidden = editing;
+    form.hidden = !editing;
+    if (editing) {
+      var first = form.querySelector('input[name="name"]');
+      if (first) { first.focus(); first.select(); }
+    }
+  }
+
+  document.querySelectorAll("[data-pedit]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      // Нэг дор ганц мөр л засварлаж байхаар бусдыг хаана
+      document.querySelectorAll("[data-pform]").forEach(function (f) {
+        toggleProductRow(f.dataset.pform, false);
+      });
+      toggleProductRow(btn.dataset.pedit, true);
+    });
+  });
+
+  document.querySelectorAll("[data-pcancel]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      toggleProductRow(btn.dataset.pcancel, false);
+    });
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    document.querySelectorAll("[data-pform]").forEach(function (f) {
+      if (!f.hidden) toggleProductRow(f.dataset.pform, false);
+    });
+  });
+
   /* ------------------------------------------ бүх channel сонгох товч */
   const selectAll = document.querySelector("[data-select-all]");
   if (selectAll) {

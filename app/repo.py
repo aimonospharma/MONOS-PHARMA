@@ -91,6 +91,32 @@ def add_product(name: str, code: str = None, line: str = None) -> int | None:
     )
 
 
+def get_product(pid: int):
+    return query_one("SELECT * FROM products WHERE id = ?", (pid,))
+
+
+def update_product(pid: int, name: str, code: str = None, line: str = None,
+                   color: str = None) -> bool:
+    """Бүтээгдэхүүний мэдээлэл засах. Нэр давхардвал False буцаана."""
+    name = (name or "").strip()
+    if not name:
+        return False
+    clash = query_one(
+        "SELECT id FROM products WHERE name = ? COLLATE NOCASE AND id <> ?", (name, pid)
+    )
+    if clash:
+        return False
+    current = get_product(pid)
+    if not current:
+        return False
+    execute(
+        "UPDATE products SET name = ?, code = ?, line = ?, color = ? WHERE id = ?",
+        (name, (code or "").strip() or None, (line or "").strip() or None,
+         (color or "").strip() or current["color"], pid),
+    )
+    return True
+
+
 def delete_product(pid: int):
     execute("DELETE FROM products WHERE id = ?", (pid,))
 
