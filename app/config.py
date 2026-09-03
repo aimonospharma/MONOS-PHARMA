@@ -17,6 +17,10 @@ DB_PATH = DATA_DIR / "app.db"
 for _d in (STORAGE_DIR, UPLOAD_DIR, THUMB_DIR, DATA_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
+APP_NAME = "MP team"
+APP_TAGLINE = "Видео контент түгээх, хэмжих платформ"
+COMPANY_DOMAIN = "monos.mn"
+
 def _flag(name: str, default: str = "0") -> bool:
     return os.environ.get(name, default).strip().lower() in {"1", "true", "yes", "on"}
 
@@ -39,6 +43,31 @@ ADMIN_EMAILS = {e.strip().lower() for e in
 # Teams карт дээрх "Үзэх" товчны бүтэн хаяг үүсгэхэд хэрэглэнэ
 PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").rstrip("/")
 
+# ---------------------------------------------- Microsoft Entra ID (Azure AD) SSO
+# Гурвуулаа бөглөгдсөн үед SSO автоматаар идэвхжинэ. Тэр үед LOGIN_PASSWORD
+# шаардлагагүй болно — хүн бүр өөрийн Microsoft бүртгэлээрээ нэвтэрнэ.
+AZURE_TENANT_ID = (os.environ.get("AZURE_TENANT_ID") or "").strip()
+AZURE_CLIENT_ID = (os.environ.get("AZURE_CLIENT_ID") or "").strip()
+AZURE_CLIENT_SECRET = (os.environ.get("AZURE_CLIENT_SECRET") or "").strip()
+SSO_ENABLED = bool(AZURE_TENANT_ID and AZURE_CLIENT_ID and AZURE_CLIENT_SECRET)
+SSO_CALLBACK_PATH = "/auth/microsoft/callback"
+
+# Зөвхөн эдгээр домэйны хаягтай хүн нэвтэрнэ (tenant-аас гадуурх зочин хаягаас сэргийлнэ)
+ALLOWED_EMAIL_DOMAINS = {
+    d.strip().lower().lstrip("@")
+    for d in (os.environ.get("ALLOWED_EMAIL_DOMAINS") or COMPANY_DOMAIN).split(",")
+    if d.strip()
+}
+
+
+# SSO асаалттай бөгөөд LOGIN_PASSWORD өгөөгүй бол нууц үгийн формыг огт харуулахгүй
+PASSWORD_LOGIN_ENABLED = bool(DEMO_MODE or LOGIN_PASSWORD)
+
+
+def sso_redirect_uri() -> str:
+    """Azure App registration дээр бүртгүүлэх Redirect URI."""
+    return f"{PUBLIC_BASE_URL}{SSO_CALLBACK_PATH}" if PUBLIC_BASE_URL else ""
+
 
 def check_production_config() -> list[str]:
     """Production дээр эгзэгтэй тохиргоо дутуу бол алдааны жагсаалт буцаана."""
@@ -51,11 +80,17 @@ def check_production_config() -> list[str]:
             "тул сесс cookie хуурамчаар үүсгэх боломжтой. Environment дээр "
             "SECRET_KEY=<санамсаргүй 64 тэмдэгт> нэмнэ үү."
         )
-    if not LOGIN_PASSWORD:
+    if not SSO_ENABLED and not LOGIN_PASSWORD:
         problems.append(
-            "LOGIN_PASSWORD тохируулаагүй байна. Ингэвэл сайт интернэтээс нээлттэй үлдэнэ. "
-            "SSO залгагдах хүртэл Environment дээр LOGIN_PASSWORD=<нууц үг> нэмнэ үү "
-            "(эсвэл зөвхөн локал туршилтад DEMO_MODE=1)."
+            "Нэвтрэлт тохируулаагүй байна. Ингэвэл сайт интернэтээс нээлттэй үлдэнэ. "
+            "Entra ID SSO-г залгах (AZURE_TENANT_ID / AZURE_CLIENT_ID / "
+            "AZURE_CLIENT_SECRET), эсвэл түр хамгаалалт болгож LOGIN_PASSWORD=<нууц үг> "
+            "нэмнэ үү (зөвхөн локал туршилтад DEMO_MODE=1)."
+        )
+    if SSO_ENABLED and not PUBLIC_BASE_URL:
+        problems.append(
+            "SSO асаалттай атлаа PUBLIC_BASE_URL тохируулаагүй байна. Redirect URI "
+            "үүсгэх боломжгүй тул нэвтрэлт ажиллахгүй."
         )
     if not ADMIN_EMAILS:
         problems.append(
@@ -63,10 +98,6 @@ def check_production_config() -> list[str]:
             "ADMIN_EMAILS=ner@monos.mn гэж нэмнэ үү."
         )
     return problems
-
-APP_NAME = "MP team"
-APP_TAGLINE = "Видео контент түгээх, хэмжих платформ"
-COMPANY_DOMAIN = "monos.mn"
 
 # Контентын үндсэн 2 хэсэг
 SECTION_BONUS = "bonus"

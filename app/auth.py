@@ -138,6 +138,29 @@ def sign_in(request: Request, email: str, name: str = "", position: str = None,
     return user
 
 
+def sign_in_microsoft(request: Request, profile: dict):
+    """Entra ID SSO-гоор нэвтрэх. Graph-аас ирсэн профайлыг DB-д sync хийнэ.
+
+    Албан тушаал, салбар, хэлтэс нь Microsoft талаас ирэх тул нэвтрэх бүрд
+    шинэчлэгдэнэ — ажилтан өөр салбар руу шилжвэл автоматаар тусна.
+    """
+    user = sign_in(
+        request,
+        email=profile["email"],
+        name=profile["name"],
+        position=profile.get("position"),
+        branch=profile.get("branch"),
+        department=profile.get("department"),
+        source="microsoft",
+    )
+    # Байгаа хэрэглэгчийн профайлыг Microsoft талын утгаар шинэчилнэ
+    repo.sync_from_microsoft(
+        user["id"], profile.get("position"), profile.get("branch"),
+        profile.get("department"), profile.get("phone"), profile["name"],
+    )
+    return repo.get_user(user["id"])
+
+
 def resolve_microsoft_user(request: Request, email: str):
     """DEMO горим: Microsoft SSO-г дуурайлгана.
 

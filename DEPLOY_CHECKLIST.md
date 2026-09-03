@@ -20,8 +20,42 @@
 | Нууц үгийг `hmac.compare_digest`-ээр харьцуулна (timing attack) | `check_password()` |
 
 > **Анхаарах:** `LOGIN_PASSWORD` нь бүх хүнд нэг ижил нууц үг — түр арга хэмжээ.
-> Хүн бүрийг ялгаж таних, гарсан ажилтны эрхийг хаах боломж Entra ID SSO
-> залгагдсаны дараа л бүрдэнэ. Үүнийг эрэмбийн дараагийн ажил гэж үзэж байна.
+> Хүн бүрийг ялгаж таних шийдэл нь доорх Entra ID SSO.
+
+### 1.1b Entra ID SSO ✅ КОД БЭЛЭН — Azure утга хүлээж байна
+
+Хүн бүр өөрийн Microsoft бүртгэлээрээ нэвтрэх бүрэн урсгал бичигдсэн
+([app/sso.py](app/sso.py), [app/auth.py](app/auth.py) `sign_in_microsoft`).
+
+| Хэрэгжүүлсэн | Тайлбар |
+|---|---|
+| OAuth2 authorization code flow | Tenant-specific authority — гадны хүн нэвтэрч чадахгүй |
+| **PKCE** (S256) | Code interception-аас сэргийлнэ |
+| **state** параметр | CSRF-ээс сэргийлнэ, `secrets.compare_digest`-ээр шалгана |
+| Домэйн шалгалт | `ALLOWED_EMAIL_DOMAINS` — зочин хаягаас сэргийлэх нэмэлт давхарга |
+| Graph `/me` sync | Нэр, албан тушаал, салбар, хэлтэс, утас нэвтрэх бүрд шинэчлэгдэнэ |
+| Хоосон талбар хамгаалалт | Microsoft талд хоосон байгаа утга аппын мэдээллийг дарж бичихгүй |
+
+**Автомат шилжилт:** `AZURE_*` гурав бөглөгдмөгц SSO идэвхжиж, нууц үгийн форм
+login дэлгэцээс **өөрөө алга болно** (`LOGIN_PASSWORD`-г хоослоход). Код
+өөрчлөх, дахин deploy хийх шаардлагагүй — зөвхөн env.
+
+**Танай талаас хэрэгтэй:**
+
+| Утга | Хаанаас |
+|---|---|
+| `AZURE_TENANT_ID` | Azure Portal → Entra ID → App registrations → Overview → Directory (tenant) ID |
+| `AZURE_CLIENT_ID` | Мөн тэндээс → Application (client) ID |
+| `AZURE_CLIENT_SECRET` | Certificates & secrets → New client secret |
+
+App registration дээр **Redirect URI (Web)** болгож дараахыг бүртгүүлнэ:
+```
+https://mpteam.lab.coremind.mn/auth/microsoft/callback
+```
+**API permissions (delegated):** `openid`, `profile`, `email`, `User.Read`
+
+> App registration үүсгэхэд IT/админ эрх шаардлагатай. Хэн үүсгэхийг
+> тодруулна уу (5.2-т dev tenant байхгүй гэж бичсэн байсан).
 
 ### 1.2 SECRET_KEY ✅ КОД ТАЛААС ЗАССАН — тохиргоо танай талд
 
@@ -108,9 +142,9 @@ PUBLIC_BASE_URL=https://mpteam.lab.coremind.mn
 Статусууд: `pending` → `sent` эсвэл `failed` (алдааны текстийг UI дээр
 харуулна). Товлосон нь `scheduled` → "Болсон товлолтуудыг илгээх" товчоор.
 
-> **Үлдсэн ажил:** товлосон илгээлтийг автоматаар явуулах scheduler одоогоор
-> байхгүй — гараар товч дарж явуулна. Cron/APScheduler нэмэх эсэхийг
-> шийдвэрлэнэ үү.
+> **Товлосон илгээлт:** гараар "Болсон товлолтуудыг илгээх" товч дарж явуулна.
+> Автомат scheduler (cron) нэмэхгүй байхаар тохирсон. Хожим хэрэгцээ гарвал
+> нэмэхэд хялбар.
 
 ### 3.4 Хэмжилтийн хязгаарлалт ✅ ОЙЛГОСОН, УГ ЗАГВАРТ ТУСГАСАН
 

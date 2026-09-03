@@ -30,6 +30,18 @@
         <div class="tag tag-ok" style="margin-top:18px">{{ ic.icon('check', 13) }} Хамгаалалттай горим</div>
       {% endif %}
 
+      {% if sso_enabled %}
+        <a class="btn btn-ms btn-block" style="margin-top:18px"
+           href="/auth/microsoft?next={{ next }}">
+          <svg width="16" height="16" viewBox="0 0 23 23" aria-hidden="true"><rect width="10" height="10" fill="#f25022"/><rect x="12" width="10" height="10" fill="#7fba00"/><rect y="12" width="10" height="10" fill="#00a4ef"/><rect x="12" y="12" width="10" height="10" fill="#ffb900"/></svg>
+          Sign in with Microsoft
+        </a>
+        <p class="tiny dim" style="margin-top:10px">
+          Байгууллагын Microsoft бүртгэлээрээ нэвтэрнэ. Албан тушаал, салбарын нэр
+          автоматаар татагдана.
+        </p>
+      {% endif %}
+
       <div class="grid" style="gap:8px;margin-top:18px">
         {% for acc in ms_accounts %}
           <a class="btn {{ 'btn-ms' if loop.first else '' }} btn-block"
@@ -53,6 +65,11 @@
         <div class="divider">эсвэл demo горимоор</div>
       {% endif %}
 
+      {% if sso_enabled and password_login %}
+        <div class="divider">эсвэл нууц үгээр</div>
+      {% endif %}
+
+      {% if password_login %}
       <form method="post" action="/login">
         <input type="hidden" name="next" value="{{ next }}">
         <label class="field">
@@ -73,6 +90,7 @@
         {% endif %}
         <button class="btn btn-primary btn-block" type="submit">{{ ic.icon('bolt') }} Нэвтрэх</button>
       </form>
+      {% endif %}
       <p class="tiny dim" style="margin-top:14px">
         Эрх (Admin / Viewer) нь бүртгэлээс автоматаар тодорхойлогдоно.
       </p>

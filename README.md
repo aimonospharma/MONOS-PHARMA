@@ -58,8 +58,31 @@ python run.py
 | **Сесс** | Нэвтрэх бүрд сесс цэвэрлэгдэнэ (session fixation-аас сэргийлнэ) |
 | **Нууц үг харьцуулалт** | `hmac.compare_digest` — timing attack-аас сэргийлнэ |
 
-Дараагийн үе шат: Microsoft Entra ID SSO ([app/auth.py](app/auth.py) дахь
-`MICROSOFT_SSO` блок). Тэр үед `LOGIN_PASSWORD` шаардлагагүй болно.
+### Нэвтрэлтийн 3 горим
+
+| Горим | Хэзээ | Login дэлгэц дээр |
+|---|---|---|
+| **SSO** | `AZURE_*` гурав бөглөгдсөн | "Sign in with Microsoft" товч |
+| **Нууц үг** | `LOGIN_PASSWORD` өгсөн | Мэйл + нэр + нууц үг |
+| **Demo** | `DEMO_MODE=1` (зөвхөн локал) | Demo account-ууд, нууц үггүй |
+
+SSO болон нууц үг хоёуланг зэрэг асааж болно. `AZURE_*` бөглөж, `LOGIN_PASSWORD`-г
+хоослоход **нууц үгийн форм өөрөө алга болно** — код өөрчлөх шаардлагагүй.
+
+### Entra ID SSO ([app/sso.py](app/sso.py))
+
+OAuth2 authorization code flow + **PKCE** (S256) + **state** (CSRF).
+Tenant-specific authority ашигладаг тул зөвхөн танай байгууллагын хүн нэвтэрнэ;
+дээр нь `ALLOWED_EMAIL_DOMAINS`-аар домэйн шалгана.
+
+Нэвтрэх бүрд Graph `/me`-ээс нэр, албан тушаал, салбар, хэлтэс, утас
+sync хийгдэнэ (Microsoft талд хоосон байгаа талбарыг дарж бичихгүй).
+
+Azure App registration дээр тохируулах:
+```
+Redirect URI (Web) : https://<домэйн>/auth/microsoft/callback
+API permissions    : openid, profile, email, User.Read (delegated)
+```
 
 ---
 

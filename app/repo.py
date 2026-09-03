@@ -56,6 +56,26 @@ def update_user_role(user_id: int, role: str):
     execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
 
 
+def sync_from_microsoft(user_id: int, position: str | None, branch: str | None,
+                        department: str | None, phone: str | None, name: str | None):
+    """Graph-аас ирсэн утгуудаар профайлыг шинэчилнэ.
+
+    Microsoft талд хоосон байгаа талбарыг дарж бичихгүй (COALESCE) — тэнд
+    бөглөөгүй байхад аппад гараар оруулсан мэдээллийг устгах ёсгүй.
+    """
+    execute(
+        """UPDATE users
+              SET position   = COALESCE(?, position),
+                  branch     = COALESCE(?, branch),
+                  department = COALESCE(?, department),
+                  phone      = COALESCE(?, phone),
+                  name       = COALESCE(?, name),
+                  source     = 'microsoft'
+            WHERE id = ?""",
+        (position, branch, department, phone, name, user_id),
+    )
+
+
 def update_profile(user_id: int, position: str, branch: str, department: str, phone: str):
     execute(
         "UPDATE users SET position=?, branch=?, department=?, phone=? WHERE id=?",

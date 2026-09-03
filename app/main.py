@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -14,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, repo, storage, teams
+from . import auth, repo, sso, storage, teams
 from .config import (APP_NAME, APP_TAGLINE, BASE_DIR, SECRET_KEY, SESSION_COOKIE,
-                     SESSION_HTTPS_ONLY, DEMO_MODE, PUBLIC_BASE_URL,
+                     SESSION_HTTPS_ONLY, DEMO_MODE, PUBLIC_BASE_URL, SSO_ENABLED,
+                     PASSWORD_LOGIN_ENABLED,
                      check_production_config,
                      SECTIONS, SECTION_SHORT, SECTION_BONUS, SECTION_OTHER,
                      ROLE_ADMIN, ROLE_VIEWER, ROLE_LABELS, tier_for, COMPANY_DOMAIN,
@@ -172,7 +174,8 @@ def login_form(request: Request, next: str = "/"):
     if auth.current_user(request):
         return RedirectResponse(next or "/", status_code=303)
     return page(request, "login.html", next=next, ms_accounts=auth.demo_accounts(),
-                demo_mode=DEMO_MODE)
+                demo_mode=DEMO_MODE, sso_enabled=SSO_ENABLED,
+                password_login=PASSWORD_LOGIN_ENABLED)
 
 
 @app.post("/login")
@@ -193,14 +196,63 @@ def login_submit(request: Request, email: str = Form(""), name: str = Form(""),
 
 @app.get("/auth/microsoft")
 def microsoft_sso(request: Request, email: str = "bolormaa.b@monos.mn", next: str = "/"):
-    """ЗӨВХӨН demo горимд ажиллана (DEMO_MODE=0 үед 404 буцаана).
+    """Entra ID SSO эхлүүлэх.
 
-    Production-д энд Azure AD authorize URL руу redirect хийж, /auth/microsoft/callback
-    дээр код солилцоод Graph /me-ээс профайл татна (auth.py дахь MICROSOFT_SSO тэмдэглэл)."""
+    SSO тохируулсан бол Microsoft-ийн нэвтрэх хуудас руу явуулна.
+    Тохируулаагүй бөгөөд DEMO_MODE=1 бол demo account-аар дуурайлгана.
+    Аль нь ч биш бол 404.
+    """
+    if SSO_ENABLED:
+        state = secrets.token_urlsafe(24)
+        verifier, challenge = sso.new_pkce()
+        # state/verifier-г сесст хадгалж, callback дээр баталгаажуулна (CSRF)
+        request.session["sso_state"] = state
+        request.session["sso_verifier"] = verifier
+        request.session["sso_next"] = next or "/"
+        return RedirectResponse(sso.authorize_url(state, challenge), status_code=303)
+
     auth.require_demo_mode()
     user = auth.resolve_microsoft_user(request, email)
     flash(request, f"Microsoft account-аар нэвтэрлээ: {user['email']}")
     return RedirectResponse(next or "/", status_code=303)
+
+
+@app.get("/auth/microsoft/callback")
+def microsoft_callback(request: Request, code: str = "", state: str = "",
+                       error: str = "", error_description: str = ""):
+    """Microsoft-оос буцаж ирэх цэг."""
+    if not SSO_ENABLED:
+        raise HTTPException(404, "SSO тохируулаагүй байна.")
+
+    saved_state = request.session.pop("sso_state", None)
+    verifier = request.session.pop("sso_verifier", None)
+    next_url = request.session.pop("sso_next", "/")
+
+    if error:
+        flash(request, f"Microsoft нэвтрэлт цуцлагдлаа: {error_description or error}", "error")
+        return RedirectResponse("/login", status_code=303)
+    if not code or not saved_state or not verifier:
+        flash(request, "Нэвтрэх хүсэлт хүчингүй болсон байна. Дахин оролдоно уу.", "error")
+        return RedirectResponse("/login", status_code=303)
+    if not secrets.compare_digest(state or "", saved_state):
+        log.warning("SSO state таарсангүй — CSRF оролдлого байж болзошгүй.")
+        flash(request, "Нэвтрэх хүсэлт баталгаажсангүй. Дахин оролдоно уу.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    token, err = sso.exchange_code(code, verifier)
+    if not token:
+        flash(request, err, "error")
+        return RedirectResponse("/login", status_code=303)
+
+    profile, err = sso.fetch_profile(token)
+    if not profile:
+        flash(request, err, "error")
+        return RedirectResponse("/login", status_code=303)
+
+    user = auth.sign_in_microsoft(request, profile)
+    log.info("SSO нэвтрэлт: %s (%s)", user["email"], user["role"])
+    flash(request, f"Тавтай морил, {user['name']}!")
+    return RedirectResponse(next_url or "/", status_code=303)
 
 
 @app.get("/logout")
