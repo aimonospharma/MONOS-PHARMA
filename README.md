@@ -27,15 +27,62 @@ python run.py
 
 ### Орчны хувьсагчид
 
+Бүрэн жагсаалт, тайлбарыг [.env.example](.env.example)-ээс харна уу.
+
 | Хувьсагч | Утга | Тайлбар |
 |---|---|---|
-| `SECRET_KEY` | санамсаргүй урт тэмдэгт | **Production дээр заавал өгнө** (session гарын үсэг) |
-| `PORT` | `8000` | Container port-той таарах ёстой |
-| `HOST` | `0.0.0.0` | `127.0.0.1` бол гаднаас нээгдэхгүй |
-| `MP_DATA_DIR` | `app/data` | SQLite-ийн байрлал. Volume/File Mount руу чиглүүлж болно |
-| `MP_STORAGE_DIR` | `app/storage` | Байршуулсан файлуудын байрлал |
-| `SESSION_HTTPS_ONLY` | `0` | HTTPS-ээр л ажиллах бол `1` |
-| `RELOAD` | `0` | Локал хөгжүүлэлтэд `1` |
+| `DEMO_MODE` | `0` | **`0` = production.** Mock login, demo account, seed өгөгдөл хаагдана. `1` зөвхөн локал |
+| `SECRET_KEY` | — | **Заавал.** `openssl rand -hex 32`. Дутуу бол апп эхлэхгүй |
+| `LOGIN_PASSWORD` | — | **Заавал.** SSO хүртэлх түр хамгаалалт. Дутуу бол апп эхлэхгүй |
+| `ADMIN_EMAILS` | — | **Заавал.** Admin эрх авах хаягууд, таслалаар. Бусад нь Viewer |
+| `PUBLIC_BASE_URL` | — | Teams картын "Үзэх" товчны хаяг. Дутуу бол илгээлт татгалзана |
+| `MP_DATA_DIR` | `app/data` | SQLite-ийн байрлал. **Volume руу заана** — эсэхгүй бол deploy бүрд устна |
+| `MP_STORAGE_DIR` | `app/storage` | Байршуулсан видео/зурагны байрлал. Мөн volume руу |
+| `SESSION_HTTPS_ONLY` | `0` | HTTPS ард ажиллах бол `1` |
+| `MAX_UPLOAD_MB` | `512` | Proxy-ийн `client_max_body_size`-тай ижил байлгана |
+| `PORT` / `HOST` | `8000` / `0.0.0.0` | Container port-той таарна |
+
+> Production дээр `SECRET_KEY`, `LOGIN_PASSWORD`, `ADMIN_EMAILS` дутуу бол апп
+> **зориудаар эхлэхгүй** — чимээгүй эмзэг байдалтай ажиллахаас сэргийлсэн.
+
+---
+
+## Аюулгүй байдлын загвар
+
+| Зүйл | Хэрэгжилт |
+|---|---|
+| **Эрх (role)** | Хэзээ ч формоос авахгүй. DB-д байгаа утга эх сурвалж; `ADMIN_EMAILS` л Admin болгоно |
+| **Mock login** | Зөвхөн `DEMO_MODE=1`. Production-д нууц үг шаардана |
+| **`/auth/microsoft`** | `DEMO_MODE=0` үед **404** |
+| **Demo account-ууд** | `DEMO_MODE=0` үед login дэлгэцэд огт харагдахгүй |
+| **Сесс** | Нэвтрэх бүрд сесс цэвэрлэгдэнэ (session fixation-аас сэргийлнэ) |
+| **Нууц үг харьцуулалт** | `hmac.compare_digest` — timing attack-аас сэргийлнэ |
+
+Дараагийн үе шат: Microsoft Entra ID SSO ([app/auth.py](app/auth.py) дахь
+`MICROSOFT_SSO` блок). Тэр үед `LOGIN_PASSWORD` шаардлагагүй болно.
+
+---
+
+## Teams интеграц
+
+Илгээх товч дарахад **Power Automate Workflow** руу Adaptive Card бодитоор
+POST хийгдэнэ ([app/teams.py](app/teams.py)).
+
+⚠️ **Office 365 Connector** (`outlook.office.com/webhook/…`) 2025 оны эцэст
+бүрмөсөн зогссон. Систем ийм URL-г таньж татгалзана.
+
+**Workflow URL үүсгэх:** Teams → channel → ⋯ → Workflows →
+"Post to a channel when a webhook request is received" → Team + Channel → Create → URL хуулах.
+
+Workflow нь үүсгэсэн хүний эрхээр ажилладаг тул **албаны нэгдсэн бүртгэлээр** үүсгэнэ.
+
+**Хэмжилтийн хязгаарлалт:** Teams доторх картыг хараад өнгөрсөн хүн статистикт
+орохгүй — Teams картын үзэлтийг гадагш өгдөггүй. Зөвхөн картны **"Үзэх"** товч
+дарж апп руу орсон үед бүртгэгдэнэ. Товчны хаяг нь `?channel=<id>` агуулах тул
+аль channel-аас хэдэн үзэлт ирснийг ялгаж хэмжинэ.
+
+Илгээлтийн үр дүн (амжилттай / алдааны текст / оролдлогын тоо) `distributions`
+хүснэгтэд хадгалагдаж, амжилтгүй болсныг **"Дахин илгээх"** товчоор дахин оролдоно.
 
 ---
 
@@ -66,8 +113,24 @@ python run.py
 | Path | `/` |
 | HTTPS | ✅ асаана |
 
-Environment tab дээр `SECRET_KEY` нэмнэ (мөн хүсвэл `SESSION_HTTPS_ONLY=1`).
+Environment tab дээр [.env.example](.env.example)-ийн дагуу хувьсагчдыг нэмнэ.
 Домэйн нэмсний **дараа Deploy-г дахин дарна**.
+
+### Volume (өгөгдөл устахаас сэргийлэх) — ЗААВАЛ
+
+`autoDeploy` асаалттай үед volume холбоогүй бол **дараагийн git push хийхэд
+SQLite DB болон байршуулсан бүх видео устана**.
+
+1. Одоогийн DB болон видеонуудын **backup гаргаж авах**
+2. Dokploy → **Volumes** → mount path `/data`
+3. Environment дээр:
+   ```
+   MP_DATA_DIR=/data/db
+   MP_STORAGE_DIR=/data/storage
+   ```
+4. Дахин deploy хийж, өгөгдөл үлдэж байгааг шалгах
+
+Код талд өөрчлөлт шаардлагагүй — [config.py](app/config.py) эдгээрийг аль хэдийн уншдаг.
 
 ### 3. Шалгах
 

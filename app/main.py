@@ -3,6 +3,7 @@ import csv
 import hashlib
 import io
 import json
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -13,17 +14,32 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, repo, storage
+from . import auth, repo, storage, teams
 from .config import (APP_NAME, APP_TAGLINE, BASE_DIR, SECRET_KEY, SESSION_COOKIE,
-                     SESSION_HTTPS_ONLY,
+                     SESSION_HTTPS_ONLY, DEMO_MODE, PUBLIC_BASE_URL,
+                     check_production_config,
                      SECTIONS, SECTION_SHORT, SECTION_BONUS, SECTION_OTHER,
                      ROLE_ADMIN, ROLE_VIEWER, ROLE_LABELS, tier_for, COMPANY_DOMAIN,
                      MAX_UPLOAD_MB)
 from .database import init_db
 
+log = logging.getLogger("mp")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db(seed=True)      # схем үүсгэж, хоосон бол demo өгөгдөл нэмнэ
+    # Production дээр эгзэгтэй тохиргоо дутуу бол огт эхлэхгүй — чимээгүй
+    # эмзэг байдалтай ажиллахаас илүү, шалтгааныг хэлээд зогссон нь дээр.
+    problems = check_production_config()
+    if problems:
+        raise RuntimeError(
+            "Production тохиргоо дутуу байна:\n  - " + "\n  - ".join(problems)
+            + "\n(Зөвхөн локал туршилтад DEMO_MODE=1 болгоно.)"
+        )
+    init_db(seed=DEMO_MODE)   # demo өгөгдөл зөвхөн demo горимд суулгана
+    if DEMO_MODE:
+        log.warning("DEMO_MODE=1 — mock login болон demo account НЭЭЛТТЭЙ. "
+                    "Production дээр 0 байх ёстой.")
     yield
 
 
@@ -112,6 +128,18 @@ def thumb_url(item) -> str:
 templates.env.globals["thumb_url"] = thumb_url
 
 
+def webhook_state(url: str | None) -> str:
+    """Channel-ийн webhook төлөв: ok | legacy | missing."""
+    if not url:
+        return "missing"
+    return "legacy" if teams.is_legacy_webhook(url) else "ok"
+
+
+templates.env.globals["webhook_state"] = webhook_state
+templates.env.globals["DEMO_MODE"] = DEMO_MODE
+templates.env.globals["PUBLIC_BASE_URL"] = PUBLIC_BASE_URL
+
+
 def page(request: Request, name: str, **ctx):
     user = auth.current_user(request)
     flash = request.session.pop("flash", None)
@@ -143,14 +171,19 @@ async def http_error(request: Request, exc: HTTPException):
 def login_form(request: Request, next: str = "/"):
     if auth.current_user(request):
         return RedirectResponse(next or "/", status_code=303)
-    return page(request, "login.html", next=next, ms_accounts=auth.DEMO_MS_ACCOUNTS)
+    return page(request, "login.html", next=next, ms_accounts=auth.demo_accounts(),
+                demo_mode=DEMO_MODE)
 
 
 @app.post("/login")
 def login_submit(request: Request, email: str = Form(""), name: str = Form(""),
-                 role: str = Form(ROLE_VIEWER), next: str = Form("/")):
+                 password: str = Form(""), next: str = Form("/")):
+    """Эрхийг (role) формоос АВАХГҮЙ — DB болон ADMIN_EMAILS-аас тодорхойлно."""
+    if not auth.check_password(password):
+        flash(request, "Нууц үг буруу байна.", "error")
+        return RedirectResponse(f"/login?next={next}", status_code=303)
     try:
-        user = auth.sign_in_mock(request, email, name, role)
+        user = auth.sign_in(request, email, name)
     except ValueError as e:
         flash(request, str(e), "error")
         return RedirectResponse(f"/login?next={next}", status_code=303)
@@ -160,10 +193,11 @@ def login_submit(request: Request, email: str = Form(""), name: str = Form(""),
 
 @app.get("/auth/microsoft")
 def microsoft_sso(request: Request, email: str = "bolormaa.b@monos.mn", next: str = "/"):
-    """Demo горим: Microsoft SSO-г дуурайлган нэвтрүүлнэ.
+    """ЗӨВХӨН demo горимд ажиллана (DEMO_MODE=0 үед 404 буцаана).
 
     Production-д энд Azure AD authorize URL руу redirect хийж, /auth/microsoft/callback
     дээр код солилцоод Graph /me-ээс профайл татна (auth.py дахь MICROSOFT_SSO тэмдэглэл)."""
+    auth.require_demo_mode()
     user = auth.resolve_microsoft_user(request, email)
     flash(request, f"Microsoft account-аар нэвтэрлээ: {user['email']}")
     return RedirectResponse(next or "/", status_code=303)
@@ -435,12 +469,11 @@ async def admin_content_create(
     repo.set_tags(cid, [t for t in tags.replace("#", "").split(",")])
     chans = [int(c) for c in channel_ids if str(c).strip().isdigit()]
     if chans:
-        n = repo.distribute(cid, chans, message, scheduled_at or None, user["id"])
-        flash(request, f"Контент хадгалагдаж, {n} channel руу "
-                       f"{'төлөвлөгдлөө' if scheduled_at else 'илгээгдлээ'}.")
+        ids = repo.create_distributions(cid, chans, message, scheduled_at or None, user["id"])
+        _distribute_flash(request, ids, bool(scheduled_at))
     else:
         flash(request, "Контент хадгалагдлаа.")
-    return RedirectResponse(f"/admin/content", status_code=303)
+    return RedirectResponse("/admin/content", status_code=303)
 
 
 @app.get("/admin/content/{cid}/edit", response_class=HTMLResponse)
@@ -518,6 +551,56 @@ def admin_distribute_page(request: Request, content_id: int = 0):
                 selected=content_id, history=repo.list_distributions(limit=60))
 
 
+def deliver(dist_id: int) -> tuple[bool, str]:
+    """Нэг түгээлтийг Teams руу бодитоор илгээж, үр дүнг DB-д бүртгэнэ."""
+    d = repo.get_distribution(dist_id)
+    if not d:
+        return False, "Түгээлт олдсонгүй."
+    if not d["is_active"]:
+        repo.mark_sent(dist_id, False, "Channel идэвхгүй байна.")
+        return False, "Channel идэвхгүй байна."
+    card = teams.build_card(
+        title=d["content_title"],
+        description=d["content_description"] or "",
+        content_id=d["content_id"],
+        channel_id=d["channel_id"],
+        product=d["product_name"],
+        section=SECTION_SHORT.get(d["section"], ""),
+        note=d["message"] or "",
+    )
+    ok, detail = teams.send(d["webhook_url"], card)
+    repo.mark_sent(dist_id, ok, detail)
+    if not ok:
+        log.warning("Teams илгээлт амжилтгүй (dist=%s, channel=%s): %s",
+                    dist_id, d["channel_name"], detail)
+    return ok, detail
+
+
+def deliver_many(dist_ids: list[int]) -> tuple[int, list[str]]:
+    sent, errors = 0, []
+    for did in dist_ids:
+        ok, detail = deliver(did)
+        if ok:
+            sent += 1
+        else:
+            errors.append(detail)
+    return sent, errors
+
+
+def _distribute_flash(request: Request, dist_ids: list[int], scheduled: bool):
+    if scheduled:
+        flash(request, f"{len(dist_ids)} channel руу товлогдлоо.")
+        return
+    sent, errors = deliver_many(dist_ids)
+    failed = len(dist_ids) - sent
+    if failed == 0:
+        flash(request, f"{sent} channel руу Teams-д илгээгдлээ.")
+    elif sent == 0:
+        flash(request, f"Илгээгдсэнгүй ({failed}). {errors[0] if errors else ''}", "error")
+    else:
+        flash(request, f"{sent} илгээгдэж, {failed} амжилтгүй. {errors[0] if errors else ''}", "warn")
+
+
 @app.post("/admin/distribute")
 def admin_distribute(request: Request, content_id: int = Form(...),
                      channel_ids: list[str] = Form([]), message: str = Form(""),
@@ -527,17 +610,37 @@ def admin_distribute(request: Request, content_id: int = Form(...),
     if not chans:
         flash(request, "Дор хаяж нэг Teams channel сонгоно уу.", "error")
         return RedirectResponse(f"/admin/distribute?content_id={content_id}", status_code=303)
-    n = repo.distribute(content_id, chans, message, scheduled_at or None, user["id"])
-    flash(request, f"{n} channel руу {'төлөвлөгдлөө' if scheduled_at else 'илгээгдлээ'}.")
+    ids = repo.create_distributions(content_id, chans, message, scheduled_at or None, user["id"])
+    _distribute_flash(request, ids, bool(scheduled_at))
     return RedirectResponse("/admin/distribute", status_code=303)
 
 
 @app.post("/admin/distribute/{dist_id}/send-now")
 def distribute_send_now(request: Request, dist_id: int):
+    """Товлосон / амжилтгүй болсон түгээлтийг одоо (дахин) илгээх."""
     auth.require_admin(request)
-    repo.mark_scheduled_sent(dist_id)
-    flash(request, "Илгээгдлээ.")
+    ok, detail = deliver(dist_id)
+    flash(request, "Teams-д илгээгдлээ." if ok else f"Илгээгдсэнгүй: {detail}",
+          "ok" if ok else "error")
     return RedirectResponse(request.headers.get("referer", "/admin/distribute"), status_code=303)
+
+
+@app.post("/admin/distribute/run-scheduled")
+def distribute_run_scheduled(request: Request):
+    """Хугацаа нь болсон товлосон түгээлтүүдийг илгээнэ.
+
+    Cron/scheduler нэмэгдэх хүртэл гараар ажиллуулна.
+    """
+    auth.require_admin(request)
+    due = [r["id"] for r in repo.due_scheduled()]
+    if not due:
+        flash(request, "Илгээх хугацаа нь болсон товлолт алга.", "warn")
+    else:
+        sent, errors = deliver_many(due)
+        flash(request, f"{sent}/{len(due)} товлолт илгээгдлээ."
+              + (f" Алдаа: {errors[0]}" if errors else ""),
+              "ok" if sent == len(due) else "warn")
+    return RedirectResponse("/admin/distribute", status_code=303)
 
 
 # ==================================================== ADMIN: CHANNELS

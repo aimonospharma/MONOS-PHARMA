@@ -14,8 +14,8 @@
     <div class="table-wrap">
       <table style="min-width:760px">
         <thead>
-          <tr><th>Channel</th><th>Холбоос</th><th class="num">Гишүүд</th><th class="num">Илгээлт</th>
-              <th class="num">Үзэлт</th><th>Статус</th><th></th></tr>
+          <tr><th>Channel</th><th>Холбоос</th><th>Webhook</th><th class="num">Гишүүд</th>
+              <th class="num">Илгээлт</th><th class="num">Үзэлт</th><th>Статус</th><th></th></tr>
         </thead>
         <tbody>
           {% for ch in channels %}
@@ -29,6 +29,16 @@
                   {{ ic.icon('link', 12) }} {{ ch.link|truncate(44) }}
                 </a>
                 <button type="button" class="btn btn-ghost btn-sm" data-copy="{{ ch.link }}">Хуулах</button>
+              </td>
+              <td>
+                {% set ws = webhook_state(ch.webhook_url) %}
+                {% if ws == 'ok' %}
+                  <span class="tag tag-ok" title="Power Automate Workflow">Тохирсон</span>
+                {% elif ws == 'legacy' %}
+                  <span class="tag tag-off" title="Office 365 Connector — зогссон">Хуучин O365</span>
+                {% else %}
+                  <span class="tag tag-warn" title="Мессеж илгээгдэхгүй">Оруулаагүй</span>
+                {% endif %}
               </td>
               <td class="num">{{ ch.members }}</td>
               <td class="num">{{ ch.sent_count }}</td>
@@ -50,7 +60,7 @@
               </td>
             </tr>
           {% else %}
-            <tr><td colspan="7" class="center dim" style="padding:36px">Channel бүртгэгдээгүй байна.</td></tr>
+            <tr><td colspan="8" class="center dim" style="padding:36px">Channel бүртгэгдээгүй байна.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -77,8 +87,10 @@
         <span class="tiny dim">Teams дээр channel → … → "Get link to channel"</span>
       </label>
       <label class="field">
-        <span>Incoming webhook URL (сонголт)</span>
-        <input type="text" name="webhook_url" placeholder="https://outlook.office.com/webhook/…">
+        <span>Power Automate Workflow URL *</span>
+        <input type="text" name="webhook_url"
+               placeholder="https://prod-23.westus.logic.azure.com:443/workflows/…/triggers/manual/paths/invoke?api-version=2016-06-01&amp;sig=…">
+        <span class="tiny dim">Үүнгүйгээр Teams рүү мессеж илгээгдэхгүй. Доорх зааврыг харна уу.</span>
       </label>
       <label class="field">
         <span>Гишүүдийн тоо</span>
@@ -90,16 +102,26 @@
     <div class="card">
       <div class="card-head">
         <span class="stat-icon" style="--accent:#ffb020;margin:0">{{ ic.icon('info') }}</span>
-        <h3>Холбоосыг хаанаас авах вэ?</h3>
+        <h3>Workflow URL хэрхэн үүсгэх вэ?</h3>
       </div>
       <ol class="small muted" style="padding-left:18px;margin:0">
-        <li>Teams → зорилтот team → channel дээр хулганы баруун товч.</li>
-        <li><b>Get link to channel</b> сонгож холбоосыг хуулна.</li>
-        <li>Дээрх формд буулгаад хадгална.</li>
+        <li>Teams → зорилтот channel → <b>⋯</b> → <b>Workflows</b></li>
+        <li><b>"Post to a channel when a webhook request is received"</b> загварыг сонгоно</li>
+        <li>Team болон Channel-аа сонгоод <b>Create</b></li>
+        <li>Гарч ирсэн <b>URL-г хуулж</b> дээрх формд буулгана</li>
       </ol>
+      <div class="tag tag-off" style="margin-top:12px;display:block;line-height:1.5">
+        ⚠️ <b>Хуучин Office 365 Connector</b>
+        (<code>outlook.office.com/webhook/…</code>) 2025 оны эцэст
+        <b>бүрмөсөн зогссон</b>. Тэр хаягийг оруулбал систем татгалзана.
+      </div>
       <p class="tiny dim mt">
-        Production дээр Microsoft Graph API-аар team/channel жагсаалт автоматаар татагдана
-        (<code>GET /me/joinedTeams</code>).
+        Workflow нь үүсгэсэн хүний эрхээр ажилладаг тул хувь хүний биш,
+        <b>албаны нэгдсэн бүртгэлээр</b> үүсгэхийг зөвлөж байна.
+      </p>
+      <p class="tiny dim">
+        Channel холбоос (<b>Get link to channel</b>) нь зөвхөн жагсаалтаас Teams рүү
+        шилжихэд хэрэглэгдэнэ — мессеж илгээхэд Workflow URL шаардлагатай.
       </p>
     </div>
   </aside>

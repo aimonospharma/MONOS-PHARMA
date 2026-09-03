@@ -154,9 +154,33 @@ def now() -> str:
     return datetime.now().replace(microsecond=0).isoformat(sep=" ")
 
 
+MIGRATIONS = {
+    # distributions — Teams-руу бодитоор илгээх үр дүнг хадгалах талбарууд
+    "distributions": [
+        ("error", "TEXT"),              # амжилтгүй болсон шалтгаан
+        ("attempts", "INTEGER NOT NULL DEFAULT 0"),
+        ("last_try_at", "TEXT"),
+    ],
+}
+
+
+def migrate() -> list[str]:
+    """Байгаа DB дээр дутуу баганыг нэмнэ (давтан ажиллуулахад аюулгүй)."""
+    applied = []
+    with db() as conn:
+        for table, columns in MIGRATIONS.items():
+            have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+            for name, ddl in columns:
+                if name not in have:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+                    applied.append(f"{table}.{name}")
+    return applied
+
+
 def init_db(seed: bool = True) -> None:
     with db() as conn:
         conn.executescript(SCHEMA)
+    migrate()
     if seed and not query_one("SELECT 1 FROM users LIMIT 1"):
         seed_demo_data()
 

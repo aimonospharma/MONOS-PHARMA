@@ -1,17 +1,24 @@
 """Нэвтрэлт.
 
-Prototype горим: email + нэрээр mock login, эсвэл "Sign in with Microsoft" товчоор
-demo Microsoft account сонгож нэвтэрнэ.
+Аюулгүй байдлын гол зарчмууд:
 
-Production: доорх `MICROSOFT_SSO` блок дахь тэмдэглэлийн дагуу Azure AD (Microsoft
-Entra ID) OAuth2 authorization-code урсгалыг залгана. Route-ууд өөрчлөгдөхгүй — зөвхөн
-`resolve_microsoft_user()` функцийн дотор Graph API-аас ирсэн профайлыг буулгана.
+* Эрхийг (role) хэзээ ч формоос авдаггүй — DB-д байгаа утга нь эх сурвалж.
+  Зөвхөн `ADMIN_EMAILS` жагсаалтад байгаа хаяг Admin болж bootstrap хийгдэнэ.
+* `DEMO_MODE=0` (production default) үед mock login болон demo Microsoft
+  account-ууд бүрэн хаагдана.
+* SSO залгагдах хүртэл production дээр `LOGIN_PASSWORD` шаардана.
+
+Production (Azure AD / Microsoft Entra ID) руу шилжихэд `MICROSOFT_SSO` блокийн
+дагуу `resolve_microsoft_user()`-ийн дотор талыг л сольно — route өөрчлөгдөхгүй.
 """
+import hmac
+
 from fastapi import Request, HTTPException
 from fastapi.responses import RedirectResponse
 
 from . import repo
-from .config import ROLE_ADMIN, ROLE_VIEWER, COMPANY_DOMAIN
+from .config import (ROLE_ADMIN, ROLE_VIEWER, COMPANY_DOMAIN, DEMO_MODE,
+                     LOGIN_PASSWORD, ADMIN_EMAILS)
 
 # --- MICROSOFT_SSO (production-д бөглөх) ---------------------------------
 # AZURE_TENANT_ID = "<tenant-id>"
@@ -19,12 +26,12 @@ from .config import ROLE_ADMIN, ROLE_VIEWER, COMPANY_DOMAIN
 # AZURE_CLIENT_SECRET = "<secret>"
 # AUTHORIZE_URL = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/oauth2/v2.0/authorize"
 # TOKEN_URL     = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/oauth2/v2.0/token"
-# GRAPH_ME      = "https://graph.microsoft.com/v1.0/me?$select=displayName,mail,jobTitle,officeLocation,department
+# GRAPH_ME      = "https://graph.microsoft.com/v1.0/me?$select=displayName,mail,jobTitle,officeLocation,department"
 # SCOPES        = "openid profile email User.Read"
 # Teams tab дотор: microsoftTeams.authentication.getAuthToken() -> on-behalf-of flow.
 # -------------------------------------------------------------------------
 
-# Demo Microsoft account-ууд ("Sign in with Microsoft" товч дарахад сонгогдоно)
+# Demo Microsoft account-ууд — ЗӨВХӨН DEMO_MODE=1 үед ашиглагдана
 DEMO_MS_ACCOUNTS = [
     {"email": "admin@monos.mn", "name": "Маркетингийн менежер", "role": ROLE_ADMIN,
      "position": "Marketing Manager", "branch": "Төв оффис", "department": "Marketing"},
@@ -33,6 +40,29 @@ DEMO_MS_ACCOUNTS = [
     {"email": "tuvshin.d@monos.mn", "name": "Д. Түвшин", "role": ROLE_VIEWER,
      "position": "Эмийн мэргэжилтэн", "branch": "Төв салбар", "department": "Retail"},
 ]
+
+
+def demo_accounts():
+    """Login дэлгэц дээр demo account харуулах эсэх."""
+    return DEMO_MS_ACCOUNTS if DEMO_MODE else []
+
+
+def require_demo_mode():
+    if not DEMO_MODE:
+        raise HTTPException(404, "Энэ хаяг зөвхөн demo горимд ажиллана.")
+
+
+def check_password(supplied: str) -> bool:
+    """Production дээр нэвтрэхэд шаардах түр нууц үг.
+
+    DEMO_MODE=1 үед нууц үг шаардахгүй. Тогтмол хугацааны харьцуулалт
+    ашиглаж, нууц үг таамаглах довтолгооноос сэргийлнэ.
+    """
+    if DEMO_MODE:
+        return True
+    if not LOGIN_PASSWORD:
+        return False          # тохируулаагүй бол хэн ч нэвтэрч чадахгүй
+    return hmac.compare_digest((supplied or "").strip(), LOGIN_PASSWORD)
 
 
 def current_user(request: Request):
@@ -61,6 +91,7 @@ def require_admin(request: Request):
 
 
 def login_session(request: Request, user):
+    request.session.clear()          # сесс солигдоход хуучин утгыг үлдээхгүй
     request.session["uid"] = user["id"]
     repo.touch_login(user["id"])
 
@@ -69,27 +100,38 @@ def logout(request: Request):
     request.session.clear()
 
 
-def sign_in_mock(request: Request, email: str, name: str, role: str = None,
-                 position: str = None, branch: str = None, source: str = "mock"):
-    """Email + нэрээр нэвтрэх. Байхгүй бол шинээр үүсгэнэ."""
+def _resolve_role(email: str, existing) -> str:
+    """Эрхийг DB болон ADMIN_EMAILS-аас тодорхойлно. Хэрэглэгчийн оролтоос АВАХГҮЙ."""
+    if email.lower() in ADMIN_EMAILS:
+        return ROLE_ADMIN
+    if existing is not None:
+        return existing["role"]
+    return ROLE_VIEWER
+
+
+def sign_in(request: Request, email: str, name: str = "", position: str = None,
+            branch: str = None, department: str = None, source: str = "mock"):
+    """Email-ээр нэвтрэх. Эрхийг DB/ADMIN_EMAILS-аас л тодорхойлно."""
     email = (email or "").strip()
     if not email:
         raise ValueError("Мэйл хаяг шаардлагатай.")
     if "@" not in email:
         email = f"{email}@{COMPANY_DOMAIN}"
+
     user = repo.get_user_by_email(email)
+    role = _resolve_role(email, user)
     if user is None:
-        # @monos.mn хаягтай хүн шууд нэгдэнэ (demo горим)
         user = repo.create_user(
             email=email,
             name=(name or email.split("@")[0]).strip(),
-            role=role or (ROLE_ADMIN if email.lower().startswith("admin@") else ROLE_VIEWER),
+            role=role,
             position=position or "Жор баригч",
             branch=branch or "Тодорхойгүй салбар",
-            department="Retail",
+            department=department or "Retail",
             source=source,
         )
-    elif role and user["role"] != role:
+    elif user["role"] != role:
+        # ADMIN_EMAILS-д нэмэгдсэн/хасагдсан бол л өөрчлөгдөнө
         repo.update_user_role(user["id"], role)
         user = repo.get_user(user["id"])
     login_session(request, user)
@@ -97,10 +139,14 @@ def sign_in_mock(request: Request, email: str, name: str, role: str = None,
 
 
 def resolve_microsoft_user(request: Request, email: str):
-    """Production-д энэ функц Graph API-аас ирсэн профайлыг хүлээж авна."""
+    """DEMO горим: Microsoft SSO-г дуурайлгана.
+
+    Production-д энэ функц Graph API-аас ирсэн профайлыг хүлээж авна.
+    """
+    require_demo_mode()
     acc = next((a for a in DEMO_MS_ACCOUNTS if a["email"] == email), DEMO_MS_ACCOUNTS[1])
-    return sign_in_mock(request, acc["email"], acc["name"], acc["role"],
-                        acc["position"], acc["branch"], source="microsoft")
+    return sign_in(request, acc["email"], acc["name"], acc["position"],
+                   acc["branch"], acc["department"], source="microsoft")
 
 
 def redirect_login(next_url: str = "/"):

@@ -67,14 +67,33 @@
     <div class="card">
       <div class="card-head"><h3>Teams интеграц</h3></div>
       <p class="small muted" style="margin-bottom:8px">
-        Prototype горимд түгээлт нь системд бүртгэгдэж, channel-ийн холбоос дээр дарж
-        Teams-д шилжинэ. Production дээр Microsoft Graph API-аар message шууд илгээгдэнэ.
+        Илгээх товч дарахад Power Automate Workflow руу <b>Adaptive Card</b> бодитоор
+        POST хийгдэнэ. Картад "Үзэх" товч байх ба түүн дээр дарж апп руу орсон үед л
+        үзэлт бүртгэгдэнэ.
       </p>
-      <div class="tiny dim">
-        <b>Graph endpoint:</b><br>
-        <code style="word-break:break-all">POST /teams/{team-id}/channels/{channel-id}/messages</code>
+      {% if not PUBLIC_BASE_URL %}
+        <div class="tag tag-off" style="display:block;line-height:1.5;margin-bottom:8px">
+          ⚠️ <b>PUBLIC_BASE_URL</b> тохируулаагүй байна. Картны "Үзэх" товч ажиллахгүй тул
+          илгээлт татгалзана. Environment дээр <code>PUBLIC_BASE_URL=https://&lt;домэйн&gt;</code> нэмнэ үү.
+        </div>
+      {% endif %}
+      <div class="tag tag-warn" style="display:block;line-height:1.5">
+        Teams доторх картыг хараад өнгөрсөн хүн статистикт <b>орохгүй</b> —
+        Teams нь картын үзэлтийг гадагш өгдөггүй.
       </div>
     </div>
+
+    <form class="card" method="post" action="/admin/distribute/run-scheduled">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#ffb020;margin:0">{{ ic.icon('clock') }}</span>
+        <h3>Товлосон илгээлт</h3>
+      </div>
+      <p class="tiny dim">
+        Хугацаа нь болсон товлолтуудыг илгээнэ. Автомат scheduler нэмэгдэх хүртэл
+        гараар ажиллуулна.
+      </p>
+      <button class="btn btn-block">{{ ic.icon('send') }} Болсон товлолтуудыг илгээх</button>
+    </form>
 
     <div class="card">
       <div class="card-head"><h3>Идэвхтэй channel</h3><span class="spacer tag">{{ channels|selectattr('is_active')|list|length }}</span></div>
@@ -103,6 +122,8 @@
         <tr><th>Контент</th><th>Channel</th><th>Мессеж</th><th>Статус</th><th>Огноо</th><th>Илгээсэн</th><th></th></tr>
       </thead>
       <tbody>
+        {% set labels = {'sent':'Илгээгдсэн','scheduled':'Төлөвлөгдсөн','failed':'Амжилтгүй','pending':'Хүлээгдэж буй'} %}
+        {% set styles = {'sent':'tag-ok','scheduled':'tag-warn','failed':'tag-off','pending':'tag-warn'} %}
         {% for d in history %}
           <tr>
             <td class="small"><a href="/content/{{ d.content_id }}"><b>{{ d.content_title|truncate(40) }}</b></a></td>
@@ -114,14 +135,23 @@
               {% endif %}
             </td>
             <td class="small dim">{{ (d.message or '—')|truncate(38) }}</td>
-            <td><span class="tag {{ 'tag-ok' if d.status == 'sent' else 'tag-warn' }}">
-              {{ 'Илгээгдсэн' if d.status == 'sent' else 'Төлөвлөгдсөн' }}</span></td>
-            <td class="small dim nowrap">{{ (d.sent_at or d.scheduled_at)|dt }}</td>
+            <td>
+              <span class="tag {{ styles.get(d.status, 'tag-warn') }}">{{ labels.get(d.status, d.status) }}</span>
+              {% if d.error %}
+                <div class="tiny" style="color:#ffb3c0;margin-top:4px;max-width:280px;white-space:normal">
+                  {{ d.error|truncate(120) }}
+                </div>
+              {% endif %}
+              {% if d.attempts %}<span class="tiny dim">{{ d.attempts }} оролдлого</span>{% endif %}
+            </td>
+            <td class="small dim nowrap">{{ (d.sent_at or d.scheduled_at or d.last_try_at)|dt }}</td>
             <td class="small dim">{{ d.sender or '—' }}</td>
             <td>
-              {% if d.status == 'scheduled' %}
+              {% if d.status != 'sent' %}
                 <form method="post" action="/admin/distribute/{{ d.id }}/send-now">
-                  <button class="btn btn-sm">Одоо илгээх</button>
+                  <button class="btn btn-sm nowrap">
+                    {{ 'Дахин илгээх' if d.status == 'failed' else 'Одоо илгээх' }}
+                  </button>
                 </form>
               {% endif %}
             </td>

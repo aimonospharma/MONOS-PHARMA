@@ -223,26 +223,68 @@ def get_tags(cid: int) -> list[str]:
 
 
 # --------------------------- Distribution -------------------------------
-def distribute(content_id: int, channel_ids: list[int], message: str,
-               scheduled_at: str | None, user_id: int) -> int:
-    count = 0
+def create_distributions(content_id: int, channel_ids: list[int], message: str,
+                         scheduled_at: str | None, user_id: int) -> list[int]:
+    """Түгээлтийн мөрүүдийг үүсгэнэ. Товлосон бол `scheduled`, эсэхгүй бол `pending`.
+
+    `sent` статус нь зөвхөн Teams руу БОДИТООР илгээгдсэний дараа тавигдана
+    (main.py дахь илгээх алхам).
+    """
+    ids = []
     with db() as conn:
         for ch in channel_ids:
-            status = "scheduled" if scheduled_at else "sent"
-            conn.execute(
-                "INSERT INTO distributions(content_id,channel_id,status,message,scheduled_at,sent_at,"
-                "created_by,created_at) VALUES(?,?,?,?,?,?,?,?)",
-                (content_id, ch, status, message or None, scheduled_at or None,
-                 None if scheduled_at else now(), user_id, now()),
+            cur = conn.execute(
+                "INSERT INTO distributions(content_id,channel_id,status,message,scheduled_at,"
+                "sent_at,created_by,created_at) VALUES(?,?,?,?,?,NULL,?,?)",
+                (content_id, ch, "scheduled" if scheduled_at else "pending",
+                 message or None, scheduled_at or None, user_id, now()),
             )
-            count += 1
+            ids.append(cur.lastrowid)
         conn.execute("UPDATE contents SET status = 'published' WHERE id = ?", (content_id,))
-    return count
+    return ids
+
+
+def get_distribution(dist_id: int):
+    return query_one(
+        """SELECT d.*, ch.name AS channel_name, ch.link AS channel_link,
+                  ch.webhook_url, ch.is_active,
+                  c.title AS content_title, c.description AS content_description,
+                  c.section, COALESCE(p.name,'') AS product_name
+           FROM distributions d
+           JOIN channels ch ON ch.id = d.channel_id
+           JOIN contents c ON c.id = d.content_id
+           LEFT JOIN products p ON p.id = c.product_id
+           WHERE d.id = ?""",
+        (dist_id,),
+    )
+
+
+def mark_sent(dist_id: int, ok: bool, detail: str):
+    """Илгээлтийн үр дүнг бүртгэнэ. Алдаа гарвал `failed` болж, шалтгаан хадгалагдана."""
+    execute(
+        """UPDATE distributions
+              SET status = ?, sent_at = ?, error = ?,
+                  attempts = attempts + 1, last_try_at = ?
+            WHERE id = ?""",
+        ("sent" if ok else "failed", now() if ok else None,
+         None if ok else (detail or "")[:500], now(), dist_id),
+    )
+
+
+def due_scheduled(limit: int = 50):
+    """Илгээх хугацаа нь болсон, хүлээгдэж буй түгээлтүүд."""
+    return query(
+        """SELECT id FROM distributions
+            WHERE status = 'scheduled' AND scheduled_at IS NOT NULL
+              AND datetime(scheduled_at) <= datetime('now', 'localtime')
+            ORDER BY scheduled_at LIMIT ?""",
+        (limit,),
+    )
 
 
 def list_distributions(content_id: int = None, limit: int = 50):
     sql = """SELECT d.*, ch.name AS channel_name, ch.link AS channel_link, ch.team_name,
-                    c.title AS content_title, u.name AS sender
+                    ch.webhook_url, c.title AS content_title, u.name AS sender
              FROM distributions d
              JOIN channels ch ON ch.id = d.channel_id
              JOIN contents c ON c.id = d.content_id
@@ -252,10 +294,6 @@ def list_distributions(content_id: int = None, limit: int = 50):
         sql += " WHERE d.content_id = ?"
         params = (content_id,)
     return query(sql + f" ORDER BY d.created_at DESC LIMIT {int(limit)}", params)
-
-
-def mark_scheduled_sent(dist_id: int):
-    execute("UPDATE distributions SET status='sent', sent_at=? WHERE id=?", (now(), dist_id))
 
 
 # ------------------------------ Views -----------------------------------
