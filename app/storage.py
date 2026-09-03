@@ -55,28 +55,62 @@ def save_upload(upload, subdir: str = "uploads") -> dict:
 
 
 PLACEHOLDER_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0%" stop-color="{c1}"/><stop offset="100%" stop-color="{c2}"/></linearGradient></defs>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="{c1}"/><stop offset="100%" stop-color="{c2}"/>
+    </linearGradient>
+    <radialGradient id="r" cx="0.8" cy="0.15" r="0.9">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
   <rect width="800" height="450" fill="url(#g)"/>
-  <circle cx="680" cy="360" r="150" fill="#fff" opacity="0.07"/>
-  <text x="48" y="238" font-family="Segoe UI, Helvetica, Arial" font-size="56" font-weight="700"
-        fill="#fff">{initials}</text>
-  <text x="48" y="292" font-family="Segoe UI, Helvetica, Arial" font-size="26" fill="#fff"
-        opacity="0.8">{label}</text>
+  <rect width="800" height="450" fill="url(#r)"/>
+  <circle cx="672" cy="366" r="150" fill="#ffffff" opacity="0.07"/>
+  <circle cx="112" cy="70" r="96" fill="#ffffff" opacity="0.06"/>
+  <text x="48" y="212" font-family="Segoe UI, Helvetica, Arial" font-size="52"
+        font-weight="700" fill="#ffffff">{line1}</text>
+  <text x="48" y="272" font-family="Segoe UI, Helvetica, Arial" font-size="30"
+        fill="#ffffff" opacity="0.82">{line2}</text>
+  <text x="48" y="404" font-family="Segoe UI, Helvetica, Arial" font-size="21"
+        fill="#ffffff" opacity="0.6" letter-spacing="3">MP TEAM · MONOS</text>
 </svg>
 """
 
 
-def make_placeholder_thumb(title: str, label: str, color: str = "#00e0a4") -> str:
-    """Cover зураг оруулаагүй үед автоматаар gradient poster үүсгэнэ."""
-    initials = " ".join(w[0] for w in re.split(r"\s+", title.strip())[:3] if w).upper() or "MP"
+def _xml_escape(s: str) -> str:
+    return (str(s or "").replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def make_placeholder_thumb(line1: str, line2: str, color: str = "#00e0a4") -> str:
+    """Cover зураг оруулаагүй үед автоматаар gradient poster үүсгэнэ.
+
+    `line1` — бүтээгдэхүүний нэр (эсвэл "MP team"), `line2` — контентын гарчиг.
+    Текст нь SVG дотор зурагддаг тул гарчиг өөрчлөгдөх бүрд дахин дуудагдана.
+    """
     name = f"auto-{uuid.uuid4().hex}.svg"
-    esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     (THUMB_DIR / name).write_text(
-        PLACEHOLDER_SVG.format(initials=esc(initials), label=esc(label[:34]), c1=color, c2="#141a3a"),
+        PLACEHOLDER_SVG.format(
+            line1=_xml_escape(str(line1).strip()[:22]),
+            line2=_xml_escape(str(line2).strip()[:34]),
+            c1=color, c2="#141a3a",
+        ),
         encoding="utf-8",
     )
     return f"thumbs/{name}"
+
+
+def is_auto_thumb(rel: str | None) -> bool:
+    """Гарчиг шигтгэсэн автомат poster мөн үү? (`auto-*` — upload, `demo-*` — seed)
+
+    Ийм зураг дээр текст нь зурагдчихсан байдаг тул гарчиг/өнгө өөрчлөгдөхөд
+    дахин зурах шаардлагатай. Хэрэглэгчийн өөрөө оруулсан cover-т хамаарахгүй.
+    """
+    if not rel:
+        return False
+    name = Path(rel).name
+    return rel.startswith("thumbs/") and (name.startswith("auto-") or name.startswith("demo-"))
 
 
 def abs_path(rel: str) -> Path:

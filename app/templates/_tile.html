@@ -3,7 +3,7 @@
 {% macro tile(item, seen=false) -%}
 <a class="tile reveal" href="/content/{{ item.id }}" style="animation-delay:{{ (loop.index0 if loop is defined else 0) * 0.04 }}s">
   <div class="tile-media">
-    {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="" loading="lazy">{% endif %}
+    {% if item.thumb_path %}<img src="{{ thumb_url(item) }}" alt="" loading="lazy">{% endif %}
     <div class="tile-badges">
       <span class="tag {{ 'tag-bonus' if item.section == SECTION_BONUS else 'tag-other' }}">
         {{ 'БОНУС' if item.section == SECTION_BONUS else KIND_LABELS.get(item.kind, item.kind)|upper }}

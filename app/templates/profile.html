@@ -65,7 +65,7 @@
               <tr>
                 <td>
                   <a class="row" href="/content/{{ h.id }}" style="gap:10px;flex-wrap:nowrap">
-                    <img src="/thumb/{{ h.id }}" alt="" loading="lazy"
+                    <img src="{{ thumb_url(h) }}" alt="" loading="lazy"
                          style="width:60px;height:34px;object-fit:cover;border-radius:8px;flex:0 0 60px">
                     <span>
                       <b class="small">{{ h.title|truncate(44) }}</b><br>

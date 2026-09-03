@@ -155,7 +155,7 @@
         <div class="card">
           <div class="card-head"><h3>Preview</h3></div>
           <div class="preview-box">
-            {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="">{% endif %}
+            {% if item.thumb_path %}<img src="{{ thumb_url(item) }}" alt="">{% endif %}
           </div>
           <div class="row small dim mt">
             <span>{{ ic.icon('eye', 13) }} {{ item.views_total }}</span>

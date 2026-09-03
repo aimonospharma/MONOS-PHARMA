@@ -1,5 +1,6 @@
 """MP team — Видео контент түгээх, хэмжих платформ (monolithic FastAPI app)."""
 import csv
+import hashlib
 import io
 import json
 from contextlib import asynccontextmanager
@@ -91,6 +92,24 @@ templates.env.globals.update(
 
 KIND_LABELS = {"video": "Видео", "image": "Зураг", "poster": "Постер", "pdf": "PDF"}
 templates.env.globals["KIND_LABELS"] = KIND_LABELS
+
+
+def thumb_url(item) -> str:
+    """Cover зургийн хаяг `?v=` хувилбартай.
+
+    `/thumb/{id}` хаяг өөрөө хэзээ ч өөрчлөгддөггүй тул зөвхөн энэ token-оор
+    browser кэш шинэчлэгддэг. thumb_path нь cover солигдох бүрд шинэ нэртэй
+    болдог учир token нь яг тэр үед л өөрчлөгдөнө.
+    """
+    try:
+        path = item["thumb_path"] or ""
+    except (KeyError, IndexError, TypeError):
+        path = ""
+    ver = hashlib.md5(str(path).encode("utf-8")).hexdigest()[:8] if path else "0"
+    return f"/thumb/{item['id']}?v={ver}"
+
+
+templates.env.globals["thumb_url"] = thumb_url
 
 
 def page(request: Request, name: str, **ctx):
@@ -394,15 +413,16 @@ async def admin_content_create(
     if cover is not None and cover.filename:
         thumb_path = storage.save_upload(cover, "thumbs")["file_path"]
     pid = int(product_id) if product_id else None
-    color = "#00e0a4"
+    color, product_name = "#00e0a4", "MP team"
     if pid:
-        p = repo.query_one("SELECT color FROM products WHERE id=?", (pid,))
-        color = p["color"] if p else color
+        p = repo.query_one("SELECT name, color FROM products WHERE id=?", (pid,))
+        if p:
+            color, product_name = p["color"], p["name"]
     if not thumb_path:
         if meta["kind"] == "image" and meta["file_path"]:
             thumb_path = meta["file_path"]
         else:
-            thumb_path = storage.make_placeholder_thumb(title, KIND_LABELS.get(meta["kind"], ""), color)
+            thumb_path = storage.make_placeholder_thumb(product_name, title, color)
 
     cid = repo.create_content(
         title=title.strip(), description=description.strip(), section=section,
@@ -450,11 +470,26 @@ async def admin_content_update(request: Request, cid: int, title: str = Form(...
         "product_id": int(product_id) if product_id else None,
         "publish_date": publish_date or item["publish_date"], "status": status,
     }
+    new_color, new_product = "#00e0a4", "MP team"
+    if fields["product_id"]:
+        p = repo.query_one("SELECT name, color FROM products WHERE id=?", (fields["product_id"],))
+        if p:
+            new_color, new_product = p["color"], p["name"]
+
     if cover is not None and cover.filename:
+        # Шинэ cover оруулсан — хуучныг сольж, файлыг нь устгана
         new_thumb = storage.save_upload(cover, "thumbs")["file_path"]
         if item["thumb_path"] and item["thumb_path"] != item["file_path"]:
             storage.delete_file(item["thumb_path"])
         fields["thumb_path"] = new_thumb
+    elif storage.is_auto_thumb(item["thumb_path"]) and (
+            item["title"] != fields["title"]
+            or (item["product_name"] or "MP team") != new_product
+            or (item["product_color"] or "#00e0a4") != new_color):
+        # Автомат poster дээр гарчиг нь зурагдсан байдаг тул шинэ гарчгаар дахин зурна
+        fields["thumb_path"] = storage.make_placeholder_thumb(new_product, fields["title"], new_color)
+        storage.delete_file(item["thumb_path"])
+
     repo.update_content(cid, **fields)
     repo.set_tags(cid, [t for t in tags.replace("#", "").split(",")])
     flash(request, "Контент шинэчлэгдлээ.")

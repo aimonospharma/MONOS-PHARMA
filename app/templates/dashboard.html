@@ -167,7 +167,7 @@
         {% set pct = (c.views / top_contents[0].views * 100) if top_contents[0].views else 0 %}
         <a class="row" href="/content/{{ c.id }}" style="gap:12px;flex-wrap:nowrap">
           <span class="dim tiny" style="width:16px">{{ loop.index }}</span>
-          <img src="/thumb/{{ c.id }}" alt="" loading="lazy"
+          <img src="{{ thumb_url(c) }}" alt="" loading="lazy"
                style="width:72px;height:41px;object-fit:cover;border-radius:9px;flex:0 0 72px">
           <span style="flex:1;min-width:0">
             <span class="small" style="font-weight:600;display:block">{{ c.title|truncate(48) }}</span>

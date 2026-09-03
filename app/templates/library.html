@@ -13,7 +13,7 @@
 
 {% if featured %}
 <div class="featured mb reveal">
-  {% if featured.thumb_path %}<img src="/thumb/{{ featured.id }}" alt="">{% endif %}
+  {% if featured.thumb_path %}<img src="{{ thumb_url(featured) }}" alt="">{% endif %}
   <div class="featured-body">
     <div class="chips mb">
       <span class="tag tag-bonus">{{ ic.icon('sparkle', 13) }} ОНЦЛОХ</span>

@@ -21,7 +21,7 @@
     <div class="player mb">
       {% if item.file_path and item.kind == 'video' %}
         <video controls preload="metadata" data-view-id="{{ view_id }}"
-               poster="{{ '/thumb/' ~ item.id if item.thumb_path }}">
+               poster="{{ thumb_url(item) if item.thumb_path else '' }}">
           <source src="/media/{{ item.id }}" type="{{ item.mime or 'video/mp4' }}">
           Таны браузер видео тоглуулагчийг дэмжихгүй байна.
         </video>
@@ -29,7 +29,7 @@
         <img src="/media/{{ item.id }}" alt="{{ item.title }}" data-still-view="{{ view_id }}">
       {% elif item.file_path %}
         <div class="player-fallback" data-still-view="{{ view_id }}">
-          {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="">{% endif %}
+          {% if item.thumb_path %}<img src="{{ thumb_url(item) }}" alt="">{% endif %}
           <div class="player-note">
             {{ ic.icon('file', 34) }}
             <b>{{ item.file_name }}</b>
@@ -38,7 +38,7 @@
         </div>
       {% else %}
         <div class="player-fallback" data-still-view="{{ view_id }}">
-          {% if item.thumb_path %}<img src="/thumb/{{ item.id }}" alt="">{% endif %}
+          {% if item.thumb_path %}<img src="{{ thumb_url(item) }}" alt="">{% endif %}
           <div class="player-note">
             {{ ic.icon('video', 34) }}
             <b>Demo контент</b>
@@ -164,7 +164,7 @@
       <div class="grid" style="gap:10px">
         {% for r in related %}
           <a class="row" href="/content/{{ r.id }}" style="gap:10px;flex-wrap:nowrap">
-            <img src="/thumb/{{ r.id }}" alt="" loading="lazy"
+            <img src="{{ thumb_url(r) }}" alt="" loading="lazy"
                  style="width:76px;height:44px;object-fit:cover;border-radius:9px;flex:0 0 76px">
             <span style="min-width:0">
               <span class="small" style="font-weight:600;display:block">{{ r.title|truncate(46) }}</span>
