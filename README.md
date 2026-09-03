@@ -19,13 +19,78 @@ pip install -r requirements.txt
 python run.py
 ```
 
-→ http://127.0.0.1:8000
+→ http://127.0.0.1:8000 (сервер `0.0.0.0:8000` дээр сонсоно)
 
 Анх ажиллуулахад `app/data/app.db` автоматаар үүсч, **demo өгөгдөл** (13 хэрэглэгч,
 8 бүтээгдэхүүн, 4 Teams channel, 12 контент, ~250 үзэлт) сууна. Цэвэрлэхийн тулд
 `app/data/` болон `app/storage/` фолдерыг устгаад дахин асаана.
 
-Орчны хувьсагч: `HOST`, `PORT`, `RELOAD=0`.
+### Орчны хувьсагчид
+
+| Хувьсагч | Утга | Тайлбар |
+|---|---|---|
+| `SECRET_KEY` | санамсаргүй урт тэмдэгт | **Production дээр заавал өгнө** (session гарын үсэг) |
+| `PORT` | `8000` | Container port-той таарах ёстой |
+| `HOST` | `0.0.0.0` | `127.0.0.1` бол гаднаас нээгдэхгүй |
+| `MP_DATA_DIR` | `app/data` | SQLite-ийн байрлал. Volume/File Mount руу чиглүүлж болно |
+| `MP_STORAGE_DIR` | `app/storage` | Байршуулсан файлуудын байрлал |
+| `SESSION_HTTPS_ONLY` | `0` | HTTPS-ээр л ажиллах бол `1` |
+| `RELOAD` | `0` | Локал хөгжүүлэлтэд `1` |
+
+---
+
+## Deploy (lab.coremind.mn)
+
+Шалгуурын дагуу **Nixpacks + Procfile** аргаар байршуулна. Dockerfile шаардлагагүй.
+
+### 1. ZIP бэлдэх
+
+```bash
+./build-zip.sh          # → dist/mp-team.zip
+```
+
+Гараар хийвэл дараах зүйлсийг **заавал хасна**: `.venv/`, `app/data/`,
+`app/storage/`, `__pycache__/`, `.DS_Store`, `dist/`.
+Файлууд ZIP-ийн **үндэс дээр** байх ёстой (нэмэлт дэд фолдерт орвол "empty upload"
+алдаа гарна) — `requirements.txt`, `Procfile`, `run.py`, `app/` нь эхний түвшинд.
+
+### 2. Панел дээрх тохиргоо
+
+| Талбар | Утга |
+|---|---|
+| Service type | **Application** |
+| Build type | **Nixpacks** |
+| Upload | Drop (zip) эсвэл GitHub |
+| **Container Port** | **`8000`** |
+| Host | `<нэр>.lab.coremind.mn` |
+| Path | `/` |
+| HTTPS | ✅ асаана |
+
+Environment tab дээр `SECRET_KEY` нэмнэ (мөн хүсвэл `SESSION_HTTPS_ONLY=1`).
+Домэйн нэмсний **дараа Deploy-г дахин дарна**.
+
+### 3. Шалгах
+
+- `https://<нэр>.lab.coremind.mn/healthz` → `{"status":"ok",...}`
+- `https://<нэр>.lab.coremind.mn/` → нэвтрэх хуудас
+
+### Deploy-ийн шаардлага хэрхэн хангагдсан
+
+| Шаардлага | Хэрэгжилт |
+|---|---|
+| `requirements.txt` бүх сантай | fastapi, uvicorn[standard], jinja2, python-multipart, itsdangerous, openpyxl |
+| `Procfile` байх | `web: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers ...` |
+| `0.0.0.0` дээр сонсох | Procfile болон `run.py` хоёулаа |
+| Порт = 8000 (FastAPI) | Procfile, `run.py`, README-д ижил |
+| Веб сервер зогсохгүй ажиллах | uvicorn (скрипт биш) |
+| Зам харьцангуй байх | бүх зураг/CSS `/static/...`, `/media/{id}` root-relative |
+| Compose-д `ports:`/`container_name:` байхгүй | Compose ашиглаагүй (Nixpacks) |
+| HTTPS ард ажиллах | `--proxy-headers --forwarded-allow-ips="*"` |
+
+> ⚠️ **Өгөгдөл хадгалалт.** SQLite болон байршуулсан файл контейнер дотор байдаг тул
+> дахин deploy хийхэд **устана**. Хадгалуулахын тулд File Mount / volume холбож,
+> `MP_DATA_DIR=/data`, `MP_STORAGE_DIR=/data/storage` гэж заана. Байнгын
+> шийдэл нь доорх PostgreSQL рүү шилжих алхам.
 
 ### Нэвтрэх (demo)
 
@@ -119,8 +184,11 @@ Teams-руу message бодитоор илгээхэд:
 ## Файлын бүтэц
 
 ```
-run.py                    # хөгжүүлэлтийн сервер эхлүүлэх цэг
-requirements.txt
+Procfile                  # deploy: web: uvicorn app.main:app --host 0.0.0.0 --port 8000
+requirements.txt          # бүх Python сан
+.python-version           # Nixpacks-д Python 3.11 заана
+build-zip.sh              # deploy ZIP бэлдэх скрипт
+run.py                    # сервер эхлүүлэх цэг (локал / энгийн start command)
 app/
   config.py               # бүх зам, тогтмол, tier тохиргоо
   database.py             # SQLite схем + demo seed

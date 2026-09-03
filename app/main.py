@@ -14,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, repo, storage
 from .config import (APP_NAME, APP_TAGLINE, BASE_DIR, SECRET_KEY, SESSION_COOKIE,
+                     SESSION_HTTPS_ONLY,
                      SECTIONS, SECTION_SHORT, SECTION_BONUS, SECTION_OTHER,
                      ROLE_ADMIN, ROLE_VIEWER, ROLE_LABELS, tier_for, COMPANY_DOMAIN,
                      MAX_UPLOAD_MB)
@@ -27,7 +28,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=APP_NAME, docs_url=None, redoc_url=None, lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie=SESSION_COOKIE,
-                   max_age=60 * 60 * 24 * 14, same_site="lax")
+                   max_age=60 * 60 * 24 * 14, same_site="lax", https_only=SESSION_HTTPS_ONLY)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))

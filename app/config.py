@@ -1,21 +1,27 @@
 """Төвлөрсөн тохиргоо. Бүх зам, тогтмол утга энд байрлана."""
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
 
-# Файлыг app server дотор хадгална (тусдаа cloud storage ашиглахгүй)
-STORAGE_DIR = BASE_DIR / "storage"
+# Файлыг app server дотор хадгална (тусдаа cloud storage ашиглахгүй).
+# Deploy дээр File Mount / volume холбосон бол MP_STORAGE_DIR, MP_DATA_DIR env-ээр
+# гадагш нь чиглүүлж болно — тэгвэл дахин deploy хийхэд өгөгдөл устахгүй.
+STORAGE_DIR = Path(os.environ.get("MP_STORAGE_DIR") or BASE_DIR / "storage").resolve()
+DATA_DIR = Path(os.environ.get("MP_DATA_DIR") or BASE_DIR / "data").resolve()
 UPLOAD_DIR = STORAGE_DIR / "uploads"
 THUMB_DIR = STORAGE_DIR / "thumbs"
-DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "app.db"
 
 for _d in (STORAGE_DIR, UPLOAD_DIR, THUMB_DIR, DATA_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
-SECRET_KEY = "monos-video-platform-dev-secret-change-in-production"
+# Production дээр Environment tab-аас SECRET_KEY-г заавал өгнө (код дотор бүү бич)
+SECRET_KEY = os.environ.get("SECRET_KEY") or "monos-video-platform-dev-secret-change-me"
 SESSION_COOKIE = "mp_session"
+# HTTPS-ээр л ажиллах бол SESSION_HTTPS_ONLY=1 болгоно
+SESSION_HTTPS_ONLY = os.environ.get("SESSION_HTTPS_ONLY", "0") == "1"
 
 APP_NAME = "MP team"
 APP_TAGLINE = "Видео контент түгээх, хэмжих платформ"
