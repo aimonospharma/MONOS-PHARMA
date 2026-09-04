@@ -35,8 +35,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY") or DEFAULT_SECRET
 SESSION_COOKIE = "mp_session"
 SESSION_HTTPS_ONLY = _flag("SESSION_HTTPS_ONLY", "0")
 
-# SSO залгагдах хүртэлх түр хамгаалалт: production-д нэвтрэхэд шаардах нууц үг.
-LOGIN_PASSWORD = (os.environ.get("LOGIN_PASSWORD") or "").strip()
+# Нууц үг нь хэрэглэгчийн мэйлийн ID хэсэг (name@monos.mn -> name).
+# Нэвтрэхийг зөвшөөрөх шалгуур нь админаас оруулсан ажилтны лавлах (directory).
 # Эдгээр хаягаар нэвтэрсэн хүн Admin эрх авна (бусад нь DB-д байгаагаараа).
 ADMIN_EMAILS = {e.strip().lower() for e in
                 (os.environ.get("ADMIN_EMAILS") or "").split(",") if e.strip()}
@@ -44,8 +44,8 @@ ADMIN_EMAILS = {e.strip().lower() for e in
 PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").rstrip("/")
 
 # ---------------------------------------------- Microsoft Entra ID (Azure AD) SSO
-# Гурвуулаа бөглөгдсөн үед SSO автоматаар идэвхжинэ. Тэр үед LOGIN_PASSWORD
-# шаардлагагүй болно — хүн бүр өөрийн Microsoft бүртгэлээрээ нэвтэрнэ.
+# Гурвуулаа бөглөгдсөн үед SSO автоматаар идэвхжиж, нууц үгийн (сул) арга
+# хаагдана — хүн бүр өөрийн Microsoft бүртгэлээрээ нэвтэрнэ.
 AZURE_TENANT_ID = (os.environ.get("AZURE_TENANT_ID") or "").strip()
 AZURE_CLIENT_ID = (os.environ.get("AZURE_CLIENT_ID") or "").strip()
 AZURE_CLIENT_SECRET = (os.environ.get("AZURE_CLIENT_SECRET") or "").strip()
@@ -60,8 +60,8 @@ ALLOWED_EMAIL_DOMAINS = {
 }
 
 
-# SSO асаалттай бөгөөд LOGIN_PASSWORD өгөөгүй бол нууц үгийн формыг огт харуулахгүй
-PASSWORD_LOGIN_ENABLED = bool(DEMO_MODE or LOGIN_PASSWORD)
+# SSO залгагдмагц нууц үгийн (сул) арга автоматаар хаагдана
+PASSWORD_LOGIN_ENABLED = bool(DEMO_MODE or not SSO_ENABLED)
 
 
 def sso_redirect_uri() -> str:
@@ -79,13 +79,6 @@ def check_production_config() -> list[str]:
             "SECRET_KEY тохируулаагүй байна. Кодод бичсэн default утга нь GitHub дээр ил "
             "тул сесс cookie хуурамчаар үүсгэх боломжтой. Environment дээр "
             "SECRET_KEY=<санамсаргүй 64 тэмдэгт> нэмнэ үү."
-        )
-    if not SSO_ENABLED and not LOGIN_PASSWORD:
-        problems.append(
-            "Нэвтрэлт тохируулаагүй байна. Ингэвэл сайт интернэтээс нээлттэй үлдэнэ. "
-            "Entra ID SSO-г залгах (AZURE_TENANT_ID / AZURE_CLIENT_ID / "
-            "AZURE_CLIENT_SECRET), эсвэл түр хамгаалалт болгож LOGIN_PASSWORD=<нууц үг> "
-            "нэмнэ үү (зөвхөн локал туршилтад DEMO_MODE=1)."
         )
     if SSO_ENABLED and not PUBLIC_BASE_URL:
         problems.append(

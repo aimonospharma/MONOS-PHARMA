@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% import "icons.html" as ic %}
+{% block title %}Ажилтны бүртгэл{% endblock %}
+{% block heading %}Ажилтны бүртгэл{% endblock %}
+{% block subheading %}Нэвтрэхийг зөвшөөрөх @{{ COMPANY_DOMAIN }} хаягуудын жагсаалт{% endblock %}
+
+{% block content %}
+<div class="split">
+  <div class="card">
+    <div class="card-head">
+      <h2>Бүртгэлтэй ажилтнууд</h2>
+      <span class="spacer tag">{{ total|num }}</span>
+    </div>
+
+    <form method="get" action="/admin/directory" class="row mb">
+      <div style="flex:1;min-width:200px">
+        <input type="search" name="q" value="{{ filters.q }}"
+               placeholder="Мэйл, овог, нэр, салбараар хайх…">
+      </div>
+      <button class="btn btn-primary btn-sm">{{ ic.icon('search') }} Хайх</button>
+      {% if filters.q %}<a class="btn btn-ghost btn-sm" href="/admin/directory">Цэвэрлэх</a>{% endif %}
+    </form>
+
+    {% if total == 0 %}
+      <div class="empty">
+        {{ ic.icon('users', 46) }}
+        <h3>Жагсаалт хоосон байна</h3>
+        <p class="small">
+          Ажилтны жагсаалтыг оруултал <b>зөвхөн Admin эрхтэй хаягууд</b> нэвтэрч чадна.
+          Баруун талаас Excel файлаа оруулна уу.
+        </p>
+      </div>
+    {% else %}
+      <div class="table-wrap">
+        <table style="min-width:820px">
+          <thead>
+            <tr><th>Ажилтан</th><th>Мэйл</th><th>Албан тушаал</th><th>Салбар</th>
+                <th>Төлөв</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for e in entries %}
+              <tr>
+                <td>
+                  <b class="small">{{ e.last_name or '' }} {{ e.first_name or '' }}</b>
+                  {% if not e.last_name and not e.first_name %}<span class="dim">—</span>{% endif %}
+                </td>
+                <td class="small dim">{{ e.email }}</td>
+                <td class="small">{{ e.position or '—' }}</td>
+                <td class="small">{{ e.branch or '—' }}</td>
+                <td>
+                  {% if e.has_account %}
+                    <span class="tag tag-ok">Нэвтэрсэн</span>
+                  {% else %}
+                    <span class="tag">Хүлээгдэж буй</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <form method="post" action="/admin/directory/delete"
+                        data-confirm="{{ e.email }}-г жагсаалтаас хасах уу? Тэр хүн нэвтэрч чадахгүй болно.">
+                    <input type="hidden" name="email" value="{{ e.email }}">
+                    <button class="btn btn-danger btn-sm" title="Хасах">{{ ic.icon('trash', 14) }}</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if entries|length < total %}
+        <div class="tiny dim mt">
+          {{ total|num }}-аас эхний {{ entries|length }}-г харуулж байна. Хайлт ашиглана уу.
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <aside class="grid" style="gap:16px">
+    <form class="card" method="post" action="/admin/directory/import" enctype="multipart/form-data">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#00e0a4;margin:0">{{ ic.icon('sheet') }}</span>
+        <div><h3>Excel-ээр оруулах</h3><div class="tiny dim">.xlsx эсвэл .csv</div></div>
+      </div>
+      <div class="dropzone" data-dropzone="dirFile">
+        {{ ic.icon('users', 36) }}
+        <strong>Ажилтны файлаа чирж оруулна уу</strong>
+        <span class="small dim">Мэйл · Овог · Нэр · Албан тушаал · Салбар · Хэлтэс · Утас</span>
+      </div>
+      <input id="dirFile" type="file" name="file" hidden accept=".xlsx,.xlsm,.csv">
+      <div class="file-pill" data-fileinfo hidden></div>
+
+      <label class="check mt">
+        <input type="checkbox" name="replace" value="1">
+        <span style="min-width:0">
+          <b class="small">Хуучин жагсаалтыг бүрэн солих</b><br>
+          <span class="tiny dim">Тэмдэглээгүй бол нэмэх/шинэчилнэ (давхардуулахгүй)</span>
+        </span>
+      </label>
+
+      <button class="btn btn-primary btn-block mt">{{ ic.icon('upload') }} Импорт хийх</button>
+      <a class="btn btn-ghost btn-block mt" href="/admin/directory/template.csv">
+        {{ ic.icon('download') }} Загвар файл татах
+      </a>
+    </form>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#17d1ff;margin:0">{{ ic.icon('info') }}</span>
+        <h3>Хэрхэн ажилладаг вэ?</h3>
+      </div>
+      <ol class="small muted" style="padding-left:18px;margin:0">
+        <li>Энэ жагсаалтад байгаа хүн л нэвтэрч чадна</li>
+        <li>Нууц үг нь мэйлийн <b>@-аас өмнөх хэсэг</b><br>
+          <span class="tiny dim">ner.o@{{ COMPANY_DOMAIN }} → нууц үг: ner.o</span></li>
+        <li>Нэвтрэхэд <b>овог нэр, албан тушаал, салбар</b> нь энэ жагсаалтаас
+          профайлд автоматаар орно</li>
+        <li>Дахин импорт хийхэд мэдээлэл шинэчлэгдэнэ — үзэлтийн түүх хөндөгдөхгүй</li>
+      </ol>
+      <div class="tag tag-warn mt" style="display:block;line-height:1.5">
+        Баганын толгойг (Мэйл, Овог, Нэр…) таньдаг тул <b>дараалал чөлөөтэй</b>.
+        Танихгүй бол зүүнээс баруун тийш дээрх дарааллаар уншина.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="stat-icon" style="--accent:#ffb020;margin:0">{{ ic.icon('info') }}</span>
+        <h3>Аюулгүй байдал</h3>
+      </div>
+      <p class="small muted" style="margin:0">
+        Нууц үг нь мэйлээс тааварлагдах тул энэ нь <b>түр шийдэл</b>. Хэн нэгэн
+        ажилтны мэйлийг мэдвэл түүний нэрээр нэвтрэх боломжтой.
+      </p>
+      <p class="tiny dim mt">
+        Бодит хамгаалалт нь Microsoft Entra ID SSO — Azure-ын гурван утга
+        (<code>AZURE_TENANT_ID</code>, <code>AZURE_CLIENT_ID</code>,
+        <code>AZURE_CLIENT_SECRET</code>) орсон даруйд энэ нууц үгийн арга
+        автоматаар хаагдана.
+      </p>
+    </div>
+  </aside>
+</div>
+{% endblock %}

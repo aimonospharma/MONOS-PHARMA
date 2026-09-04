@@ -106,6 +106,21 @@ CREATE TABLE IF NOT EXISTS comments (
     created_at TEXT NOT NULL
 );
 
+-- Ажилтны лавлах: админаас Excel-ээр оруулсан @monos.mn хаягуудын жагсаалт.
+-- Нэвтрэхийг зөвшөөрөх шалгуур бөгөөд профайлын мэдээллийн эх сурвалж.
+-- `users`-аас тусдаа: дахин импорт хийхэд хэрэглэгчийн эрх, үзэлтийн түүх хөндөгдөхгүй.
+CREATE TABLE IF NOT EXISTS directory (
+    email       TEXT PRIMARY KEY,
+    last_name   TEXT,                      -- овог
+    first_name  TEXT,                      -- нэр
+    position    TEXT,                      -- албан тушаал
+    branch      TEXT,                      -- салбар
+    department  TEXT,
+    phone       TEXT,
+    updated_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_directory_branch ON directory(branch);
 CREATE INDEX IF NOT EXISTS idx_views_content ON views(content_id);
 CREATE INDEX IF NOT EXISTS idx_views_user ON views(user_id);
 CREATE INDEX IF NOT EXISTS idx_views_date ON views(viewed_at);

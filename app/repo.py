@@ -83,6 +83,96 @@ def update_profile(user_id: int, position: str, branch: str, department: str, ph
     )
 
 
+# --------------------------- Ажилтны лавлах ------------------------------
+def display_name(last_name: str | None, first_name: str | None, email: str = "") -> str:
+    """Монгол журмаар нэр угсрана: 'Б. Болормаа'.
+
+    Овог байхгүй бол зөвхөн нэр, аль нь ч байхгүй бол мэйлийн ID хэсэг.
+    """
+    last, first = (last_name or "").strip(), (first_name or "").strip()
+    if last and first:
+        return f"{last[0].upper()}. {first}"
+    return first or last or (email.split("@")[0] if email else "")
+
+
+def get_directory_entry(email: str):
+    return query_one("SELECT * FROM directory WHERE email = ? COLLATE NOCASE",
+                     ((email or "").strip(),))
+
+
+def directory_count() -> int:
+    row = query_one("SELECT COUNT(*) AS n FROM directory")
+    return row["n"] if row else 0
+
+
+def list_directory(search: str = None, limit: int = 200):
+    sql = """SELECT d.*, (SELECT COUNT(*) FROM users u WHERE u.email = d.email COLLATE NOCASE)
+                    AS has_account
+             FROM directory d"""
+    params: list = []
+    if search:
+        sql += (" WHERE d.email LIKE ? OR d.last_name LIKE ? OR d.first_name LIKE ?"
+                " OR d.branch LIKE ?")
+        like = f"%{search}%"
+        params += [like, like, like, like]
+    sql += " ORDER BY d.branch, d.last_name, d.first_name LIMIT ?"
+    params.append(int(limit))
+    return query(sql, tuple(params))
+
+
+def upsert_directory(email: str, last_name: str = None, first_name: str = None,
+                     position: str = None, branch: str = None,
+                     department: str = None, phone: str = None) -> bool:
+    """Нэг мөр нэмэх/шинэчлэх. Дахин импортод давхардуулахгүй."""
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        return False
+    clean = lambda v: ((v or "").strip() or None)
+    execute(
+        """INSERT INTO directory(email,last_name,first_name,position,branch,department,
+                                 phone,updated_at)
+           VALUES(?,?,?,?,?,?,?,?)
+           ON CONFLICT(email) DO UPDATE SET
+               last_name=excluded.last_name, first_name=excluded.first_name,
+               position=excluded.position, branch=excluded.branch,
+               department=excluded.department, phone=excluded.phone,
+               updated_at=excluded.updated_at""",
+        (email, clean(last_name), clean(first_name), clean(position), clean(branch),
+         clean(department), clean(phone), now()),
+    )
+    return True
+
+
+def delete_directory_entry(email: str):
+    execute("DELETE FROM directory WHERE email = ? COLLATE NOCASE", ((email or "").strip(),))
+
+
+def clear_directory():
+    execute("DELETE FROM directory")
+
+
+def apply_directory_to_user(user_id: int, entry) -> None:
+    """Лавлахын мэдээллийг хэрэглэгчийн профайлд буулгана.
+
+    Лавлахад хоосон байгаа талбарыг дарж бичихгүй (COALESCE) — хэрэглэгч
+    өөрөө нөхөж бичсэн мэдээллийг устгах ёсгүй.
+    """
+    if not entry:
+        return
+    name = display_name(entry["last_name"], entry["first_name"], entry["email"])
+    execute(
+        """UPDATE users
+              SET name       = COALESCE(NULLIF(?, ''), name),
+                  position   = COALESCE(?, position),
+                  branch     = COALESCE(?, branch),
+                  department = COALESCE(?, department),
+                  phone      = COALESCE(?, phone)
+            WHERE id = ?""",
+        (name, entry["position"], entry["branch"], entry["department"],
+         entry["phone"], user_id),
+    )
+
+
 # ----------------------------- Products ---------------------------------
 PALETTE = ["#00e0a4", "#38bdf8", "#a855f7", "#f97316", "#ec4899",
            "#22d3ee", "#ef4444", "#facc15", "#84cc16", "#7c5cff"]

@@ -18,7 +18,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import auth, repo, sso, storage, teams
 from .config import (APP_NAME, APP_TAGLINE, BASE_DIR, SECRET_KEY, SESSION_COOKIE,
                      SESSION_HTTPS_ONLY, DEMO_MODE, PUBLIC_BASE_URL, SSO_ENABLED,
-                     PASSWORD_LOGIN_ENABLED,
+                     PASSWORD_LOGIN_ENABLED, ALLOWED_EMAIL_DOMAINS,
                      check_production_config,
                      SECTIONS, SECTION_SHORT, SECTION_BONUS, SECTION_OTHER,
                      ROLE_ADMIN, ROLE_VIEWER, ROLE_LABELS, tier_for, COMPANY_DOMAIN,
@@ -179,17 +179,32 @@ def login_form(request: Request, next: str = "/"):
 
 
 @app.post("/login")
-def login_submit(request: Request, email: str = Form(""), name: str = Form(""),
-                 password: str = Form(""), next: str = Form("/")):
-    """Эрхийг (role) формоос АВАХГҮЙ — DB болон ADMIN_EMAILS-аас тодорхойлно."""
-    if not auth.check_password(password):
-        flash(request, "Нууц үг буруу байна.", "error")
+def login_submit(request: Request, email: str = Form(""), password: str = Form(""),
+                 next: str = Form("/")):
+    """Зөвхөн @monos.mn хаягаар, нууц үг нь мэйлийн ID хэсэг.
+
+    Нэр асуухгүй — ажилтны лавлахаас автоматаар татна.
+    Эрхийг (role) формоос АВАХГҮЙ — DB болон ADMIN_EMAILS-аас тодорхойлно.
+    """
+    def deny(msg: str):
+        flash(request, msg, "error")
         return RedirectResponse(f"/login?next={next}", status_code=303)
+
+    email = auth.normalize_email(email)
+    if not email:
+        return deny("Мэйл хаягаа оруулна уу.")
+    if not auth.check_domain(email):
+        allowed = ", ".join("@" + d for d in sorted(ALLOWED_EMAIL_DOMAINS))
+        return deny(f"Зөвхөн {allowed} хаягаар нэвтэрнэ.")
+    if not auth.check_password(email, password):
+        return deny("Нууц үг буруу байна. Нууц үг нь таны мэйлийн @-аас өмнөх хэсэг.")
+    if not auth.is_allowed_to_sign_in(email):
+        return deny("Энэ хаяг ажилтны жагсаалтад бүртгэлгүй байна. "
+                    "Маркетингийн хэлтэст хандана уу.")
     try:
-        user = auth.sign_in(request, email, name)
+        user = auth.sign_in(request, email)
     except ValueError as e:
-        flash(request, str(e), "error")
-        return RedirectResponse(f"/login?next={next}", status_code=303)
+        return deny(str(e))
     flash(request, f"Тавтай морил, {user['name']}!")
     return RedirectResponse(next or "/", status_code=303)
 
@@ -843,6 +858,125 @@ def admin_user_role(request: Request, uid: int, role: str = Form(...)):
     repo.update_user_role(uid, role if role in ROLE_LABELS else ROLE_VIEWER)
     flash(request, "Эрх шинэчлэгдлээ.")
     return RedirectResponse("/admin/users", status_code=303)
+
+
+# ================================================== ADMIN: АЖИЛТНЫ ЛАВЛАХ
+# Excel/CSV-ийн толгой мөрийг таних түлхүүр үгс (жижиг үсгээр)
+DIR_HEADERS = {
+    "email": {"мэйл", "мейл", "имэйл", "имейл", "email", "e-mail", "мэйл хаяг", "цахим шуудан"},
+    "last_name": {"овог", "ovog", "last name", "lastname", "surname"},
+    "first_name": {"нэр", "ner", "first name", "firstname", "name", "өөрийн нэр"},
+    "position": {"албан тушаал", "тушаал", "position", "job title", "title"},
+    "branch": {"салбар", "салбарын нэр", "branch", "office", "office location"},
+    "department": {"хэлтэс", "алба", "department"},
+    "phone": {"утас", "phone", "mobile", "утасны дугаар"},
+}
+DIR_ORDER = ["email", "last_name", "first_name", "position", "branch", "department", "phone"]
+
+
+def _map_directory_columns(header: list[str]) -> dict[str, int] | None:
+    """Толгой мөрөөс баганын байрлалыг таана. Танихгүй бол None."""
+    mapping = {}
+    for idx, cell in enumerate(header):
+        key = (cell or "").strip().lower()
+        for field, names in DIR_HEADERS.items():
+            if key in names and field not in mapping:
+                mapping[field] = idx
+    return mapping if "email" in mapping else None
+
+
+@app.get("/admin/directory", response_class=HTMLResponse)
+def admin_directory(request: Request, q: str = ""):
+    auth.require_admin(request)
+    return page(request, "admin_directory.html",
+                entries=repo.list_directory(search=q or None),
+                total=repo.directory_count(), filters={"q": q})
+
+
+@app.post("/admin/directory/import")
+async def admin_directory_import(request: Request, file: UploadFile = File(...),
+                                 replace: str = Form("")):
+    """@monos.mn ажилтны жагсаалтыг Excel (.xlsx) / CSV-ээс оруулна.
+
+    Толгой мөрөөр багана таних тул баганын дараалал чөлөөтэй. Таних үг олдохгүй
+    бол `Мэйл, Овог, Нэр, Албан тушаал, Салбар, Хэлтэс, Утас` дарааллаар уншина.
+    """
+    auth.require_admin(request)
+    raw = await file.read()
+    rows: list[list[str]] = []
+    fname = (file.filename or "").lower()
+    try:
+        if fname.endswith((".xlsx", ".xlsm")):
+            from openpyxl import load_workbook
+            wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            for r in wb.active.iter_rows(values_only=True):
+                rows.append(["" if c is None else str(c).strip() for c in r])
+        else:
+            text = raw.decode("utf-8-sig", errors="replace")
+            delim = ";" if text.count(";") > text.count(",") else ","
+            rows = [r for r in csv.reader(io.StringIO(text), delimiter=delim)]
+    except Exception as e:
+        flash(request, f"Файл уншиж чадсангүй: {e}", "error")
+        return RedirectResponse("/admin/directory", status_code=303)
+
+    rows = [r for r in rows if any((c or "").strip() for c in r)]
+    if not rows:
+        flash(request, "Файл хоосон байна.", "error")
+        return RedirectResponse("/admin/directory", status_code=303)
+
+    mapping = _map_directory_columns(rows[0])
+    if mapping:
+        rows = rows[1:]                      # толгой мөрийг алгасна
+    else:
+        mapping = {f: i for i, f in enumerate(DIR_ORDER)}
+
+    if replace:
+        repo.clear_directory()
+
+    added, skipped = 0, 0
+    for r in rows:
+        get = lambda f: (r[mapping[f]] if f in mapping and mapping[f] < len(r) else None)
+        raw_email = (get("email") or "").strip()
+        # Импортод "@"-г нөхөж бичихгүй — үсгийн алдаа хүчинтэй хаяг болох ёсгүй.
+        # (Нэвтрэх формд харин нөхөж өгдөг: хэрэглэгч зөвхөн ID-гаа бичиж болно.)
+        if "@" not in raw_email:
+            skipped += 1
+            continue
+        email = auth.normalize_email(raw_email)
+        if not auth.check_domain(email):
+            skipped += 1
+            continue
+        if repo.upsert_directory(email, get("last_name"), get("first_name"),
+                                 get("position"), get("branch"),
+                                 get("department"), get("phone")):
+            added += 1
+        else:
+            skipped += 1
+
+    msg = f"Импорт дууслаа: {added} ажилтан бүртгэгдлээ."
+    if skipped:
+        msg += f" {skipped} мөр алгасагдсан (мэйл буруу эсвэл өөр домэйн)."
+    flash(request, msg, "ok" if added else "warn")
+    return RedirectResponse("/admin/directory", status_code=303)
+
+
+@app.get("/admin/directory/template.csv")
+def directory_template(request: Request):
+    auth.require_admin(request)
+    body = ("﻿Мэйл,Овог,Нэр,Албан тушаал,Салбар,Хэлтэс,Утас\n"
+            "bolormaa.b@monos.mn,Батбаяр,Болормаа,Жор баригч,Сансар салбар,Retail,99112233\n"
+            "tuvshin.d@monos.mn,Дорж,Түвшин,Эмийн мэргэжилтэн,Төв салбар,Retail,99445566\n")
+    return PlainTextResponse(body, media_type="text/csv; charset=utf-8",
+                             headers={"content-disposition":
+                                      'attachment; filename="ajiltan-template.csv"'})
+
+
+@app.post("/admin/directory/delete")
+def admin_directory_delete(request: Request, email: str = Form(...)):
+    auth.require_admin(request)
+    repo.delete_directory_entry(email)
+    flash(request, f"{email} лавлахаас хасагдлаа.", "warn")
+    return RedirectResponse("/admin/directory", status_code=303)
 
 
 @app.get("/healthz")

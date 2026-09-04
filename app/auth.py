@@ -6,7 +6,8 @@
   Зөвхөн `ADMIN_EMAILS` жагсаалтад байгаа хаяг Admin болж bootstrap хийгдэнэ.
 * `DEMO_MODE=0` (production default) үед mock login болон demo Microsoft
   account-ууд бүрэн хаагдана.
-* SSO залгагдах хүртэл production дээр `LOGIN_PASSWORD` шаардана.
+* Нэвтрэх нь зөвхөн @monos.mn домэйн + ажилтны лавлахад бүртгэлтэй хүнд нээлттэй.
+  Нууц үг нь мэйлийн ID хэсэг — SSO залгагдах хүртэлх түр шийдэл.
 
 Production (Azure AD / Microsoft Entra ID) руу шилжихэд `MICROSOFT_SSO` блокийн
 дагуу `resolve_microsoft_user()`-ийн дотор талыг л сольно — route өөрчлөгдөхгүй.
@@ -18,7 +19,7 @@ from fastapi.responses import RedirectResponse
 
 from . import repo
 from .config import (ROLE_ADMIN, ROLE_VIEWER, COMPANY_DOMAIN, DEMO_MODE,
-                     LOGIN_PASSWORD, ADMIN_EMAILS)
+                     ADMIN_EMAILS, ALLOWED_EMAIL_DOMAINS)
 
 # --- MICROSOFT_SSO (production-д бөглөх) ---------------------------------
 # AZURE_TENANT_ID = "<tenant-id>"
@@ -52,17 +53,50 @@ def require_demo_mode():
         raise HTTPException(404, "Энэ хаяг зөвхөн demo горимд ажиллана.")
 
 
-def check_password(supplied: str) -> bool:
-    """Production дээр нэвтрэхэд шаардах түр нууц үг.
+def normalize_email(email: str) -> str:
+    """Мэйлийг цэгцлэнэ. '@'-гүй бол компанийн домэйныг залгана."""
+    email = (email or "").strip().lower()
+    if not email:
+        return ""
+    if "@" not in email:
+        email = f"{email}@{COMPANY_DOMAIN}"
+    return email
 
-    DEMO_MODE=1 үед нууц үг шаардахгүй. Тогтмол хугацааны харьцуулалт
-    ашиглаж, нууц үг таамаглах довтолгооноос сэргийлнэ.
+
+def email_local_part(email: str) -> str:
+    """`bolormaa.b@monos.mn` → `bolormaa.b` (энэ нь нууц үг болно)."""
+    return normalize_email(email).split("@")[0]
+
+
+def check_domain(email: str) -> bool:
+    """Зөвхөн зөвшөөрөгдсөн домэйн (үндсэндээ @monos.mn)."""
+    domain = normalize_email(email).rsplit("@", 1)[-1]
+    return (not ALLOWED_EMAIL_DOMAINS) or domain in ALLOWED_EMAIL_DOMAINS
+
+
+def check_password(email: str, supplied: str) -> bool:
+    """Нууц үг нь мэйлийн ID хэсэг (`name@monos.mn` → `name`).
+
+    Тогтмол хугацааны харьцуулалт ашиглаж, timing attack-аас сэргийлнэ.
     """
     if DEMO_MODE:
         return True
-    if not LOGIN_PASSWORD:
-        return False          # тохируулаагүй бол хэн ч нэвтэрч чадахгүй
-    return hmac.compare_digest((supplied or "").strip(), LOGIN_PASSWORD)
+    expected = email_local_part(email)
+    if not expected:
+        return False
+    return hmac.compare_digest((supplied or "").strip().lower(), expected)
+
+
+def is_allowed_to_sign_in(email: str) -> bool:
+    """Ажилтны лавлахад байгаа, эсвэл ADMIN_EMAILS-д заасан хүн л нэвтэрнэ.
+
+    Лавлах хоосон үед зөвхөн ADMIN_EMAILS нэвтэрч чадна — админ эхлээд
+    жагсаалтаа импортлох боломжтой байхын тулд.
+    """
+    email = normalize_email(email)
+    if email in ADMIN_EMAILS:
+        return True
+    return repo.get_directory_entry(email) is not None
 
 
 def current_user(request: Request):
@@ -111,12 +145,21 @@ def _resolve_role(email: str, existing) -> str:
 
 def sign_in(request: Request, email: str, name: str = "", position: str = None,
             branch: str = None, department: str = None, source: str = "mock"):
-    """Email-ээр нэвтрэх. Эрхийг DB/ADMIN_EMAILS-аас л тодорхойлно."""
-    email = (email or "").strip()
+    """Email-ээр нэвтрэх. Эрхийг DB/ADMIN_EMAILS-аас л тодорхойлно.
+
+    Хэрэглэгчийн нэр, албан тушаал, салбарыг ажилтны лавлахаас автоматаар
+    авна — нэвтрэх дэлгэц дээр нэр асуухгүй.
+    """
+    email = normalize_email(email)
     if not email:
         raise ValueError("Мэйл хаяг шаардлагатай.")
-    if "@" not in email:
-        email = f"{email}@{COMPANY_DOMAIN}"
+
+    entry = repo.get_directory_entry(email)
+    if entry is not None:
+        name = repo.display_name(entry["last_name"], entry["first_name"], email)
+        position = position or entry["position"]
+        branch = branch or entry["branch"]
+        department = department or entry["department"]
 
     user = repo.get_user_by_email(email)
     role = _resolve_role(email, user)
@@ -125,15 +168,19 @@ def sign_in(request: Request, email: str, name: str = "", position: str = None,
             email=email,
             name=(name or email.split("@")[0]).strip(),
             role=role,
-            position=position or "Жор баригч",
-            branch=branch or "Тодорхойгүй салбар",
-            department=department or "Retail",
+            position=position,
+            branch=branch,
+            department=department,
             source=source,
         )
     elif user["role"] != role:
         # ADMIN_EMAILS-д нэмэгдсэн/хасагдсан бол л өөрчлөгдөнө
         repo.update_user_role(user["id"], role)
         user = repo.get_user(user["id"])
+
+    # Нэвтрэх бүрд лавлахаас профайлыг шинэчилнэ (салбар солигдвол тусна)
+    repo.apply_directory_to_user(user["id"], entry)
+    user = repo.get_user(user["id"])
     login_session(request, user)
     return user
 

@@ -74,25 +74,26 @@
         <input type="hidden" name="next" value="{{ next }}">
         <label class="field">
           <span>Мэйл хаяг</span>
-          <input type="text" name="email" placeholder="ner.o@{{ COMPANY_DOMAIN }}" required autofocus>
-        </label>
-        <label class="field">
-          <span>Нэр</span>
-          <input type="text" name="name" placeholder="О. Нэр">
+          <input type="email" name="email" required autofocus autocomplete="username"
+                 placeholder="ner.o@{{ COMPANY_DOMAIN }}">
+          <span class="tiny dim">Зөвхөн @{{ COMPANY_DOMAIN }} хаяг.</span>
         </label>
         {% if not demo_mode %}
           <label class="field">
             <span>Нууц үг</span>
             <input type="password" name="password" required autocomplete="current-password"
-                   placeholder="Байгууллагаас өгсөн нууц үг">
-            <span class="tiny dim">SSO залгагдах хүртэлх түр хамгаалалт.</span>
+                   placeholder="Мэйлийн @-аас өмнөх хэсэг">
+            <span class="tiny dim">
+              Жишээ: <b>ner.o@{{ COMPANY_DOMAIN }}</b> хаягтай бол нууц үг нь <b>ner.o</b>
+            </span>
           </label>
         {% endif %}
         <button class="btn btn-primary btn-block" type="submit">{{ ic.icon('bolt') }} Нэвтрэх</button>
       </form>
       {% endif %}
       <p class="tiny dim" style="margin-top:14px">
-        Эрх (Admin / Viewer) нь бүртгэлээс автоматаар тодорхойлогдоно.
+        Овог нэр, салбарын мэдээлэл ажилтны бүртгэлээс автоматаар татагдана.
+        Эрх (Admin / Viewer) мөн адил.
       </p>
     </div>
   </div>
