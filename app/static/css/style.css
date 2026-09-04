@@ -217,8 +217,9 @@ input[type=color] {
 }
 input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
 input[type=color]::-webkit-color-swatch { border: none; border-radius: 8px; }
-input[type=text], input[type=email], input[type=url], input[type=number],
-input[type=date], input[type=datetime-local], input[type=search], select, textarea {
+input[type=text], input[type=email], input[type=password], input[type=url],
+input[type=number], input[type=date], input[type=datetime-local],
+input[type=search], select, textarea {
   width: 100%; padding: 10px 13px; border-radius: 12px; font-family: inherit; font-size: .88rem;
   background: rgba(0, 0, 0, .28); border: 1px solid var(--line); color: var(--text);
   transition: border-color .18s, box-shadow .18s, background .18s;
@@ -230,6 +231,30 @@ input:focus, select:focus, textarea:focus {
 textarea { resize: vertical; min-height: 92px; }
 select option { background: #131a33; color: var(--text); }
 input::placeholder, textarea::placeholder { color: #5c6a94; }
+
+/* Chrome-ийн autofill нь өөрийн цагаан дэвсгэр, хар текст тулгадаг —
+   бараан загвар дээр текст нь уншигдахгүй болдог тул дарж бичнэ. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0 1000px #101832 inset;
+  caret-color: var(--text);
+  border-radius: 12px;
+  transition: background-color 9999s ease-out 0s;   /* шар анивчилтыг зогсооно */
+}
+
+/* Нууц үгээ шалгах "нүд" товчтой талбар */
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 46px; }
+.pw-toggle {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 34px; height: 34px;
+  border: 0; border-radius: 9px; background: transparent; cursor: pointer;
+  color: var(--muted); transition: color .15s, background .15s;
+}
+.pw-toggle:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.pw-toggle svg { width: 17px; height: 17px; }
 
 .check {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;

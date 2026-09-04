@@ -81,8 +81,15 @@
         {% if not demo_mode %}
           <label class="field">
             <span>Нууц үг</span>
-            <input type="password" name="password" required autocomplete="current-password"
-                   placeholder="Мэйлийн @-аас өмнөх хэсэг">
+            <span class="pw-wrap">
+              <input type="password" name="password" id="pw" required
+                     autocomplete="current-password" placeholder="Мэйлийн @-аас өмнөх хэсэг">
+              <button type="button" class="pw-toggle" data-pw-toggle="pw"
+                      aria-label="Нууц үгийг харуулах" title="Харах">
+                <span data-pw-show>{{ ic.icon('eye') }}</span>
+                <span data-pw-hide hidden>{{ ic.icon('eye-off') }}</span>
+              </button>
+            </span>
             <span class="tiny dim">
               Жишээ: <b>ner.o@{{ COMPANY_DOMAIN }}</b> хаягтай бол нууц үг нь <b>ner.o</b>
             </span>

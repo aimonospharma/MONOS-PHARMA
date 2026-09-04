@@ -147,6 +147,23 @@
     });
   }
 
+  /* --------------------------------- нууц үгээ харах / нуух товч */
+  document.querySelectorAll("[data-pw-toggle]").forEach(function (btn) {
+    var input = document.getElementById(btn.dataset.pwToggle);
+    if (!input) return;
+    btn.addEventListener("click", function () {
+      var showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      var eye = btn.querySelector("[data-pw-show]");
+      var eyeOff = btn.querySelector("[data-pw-hide]");
+      if (eye) eye.hidden = !showing;
+      if (eyeOff) eyeOff.hidden = showing;
+      btn.title = showing ? "Харах" : "Нуух";
+      btn.setAttribute("aria-label", showing ? "Нууц үгийг харуулах" : "Нууц үгийг нуух");
+      input.focus();
+    });
+  });
+
   /* ------------------------------------------------ баталгаажуулалт */
   document.querySelectorAll("[data-confirm]").forEach(function (form) {
     form.addEventListener("submit", function (e) {
