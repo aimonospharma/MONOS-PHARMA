@@ -161,6 +161,26 @@ def add_channel(name: str, team_name: str, link: str, webhook: str = None, membe
     )
 
 
+def get_channel(cid: int):
+    return query_one("SELECT * FROM channels WHERE id = ?", (cid,))
+
+
+def update_channel(cid: int, name: str, team_name: str, link: str,
+                   webhook: str = None, members: int = 0) -> bool:
+    """Channel-ийн мэдээлэл засах. Нэр, холбоос хоосон бол False буцаана."""
+    name, link = (name or "").strip(), (link or "").strip()
+    if not name or not link:
+        return False
+    if not get_channel(cid):
+        return False
+    execute(
+        "UPDATE channels SET name=?, team_name=?, link=?, webhook_url=?, members=? WHERE id=?",
+        (name, (team_name or "").strip() or None, link,
+         (webhook or "").strip() or None, int(members or 0), cid),
+    )
+    return True
+
+
 def toggle_channel(cid: int):
     execute("UPDATE channels SET is_active = 1 - is_active WHERE id = ?", (cid,))
 

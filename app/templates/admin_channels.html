@@ -12,23 +12,27 @@
       <span class="spacer tag">{{ channels|length }}</span>
     </div>
     <div class="table-wrap">
-      <table style="min-width:760px">
+      <table style="min-width:900px">
         <thead>
           <tr><th>Channel</th><th>Холбоос</th><th>Webhook</th><th class="num">Гишүүд</th>
               <th class="num">Илгээлт</th><th class="num">Үзэлт</th><th>Статус</th><th></th></tr>
         </thead>
         <tbody>
           {% for ch in channels %}
-            <tr>
+            <tr data-editrow="ch{{ ch.id }}">
               <td>
                 <b class="small">{{ ch.name }}</b><br>
                 <span class="tiny dim">{{ ch.team_name or '—' }}</span>
               </td>
-              <td class="small" style="max-width:280px">
-                <a href="{{ ch.link }}" target="_blank" rel="noopener" style="color:var(--brand-2);word-break:break-all">
-                  {{ ic.icon('link', 12) }} {{ ch.link|truncate(44) }}
-                </a>
-                <button type="button" class="btn btn-ghost btn-sm" data-copy="{{ ch.link }}">Хуулах</button>
+              <td class="small" style="max-width:210px">
+                <div class="row nowrap" style="gap:4px;flex-wrap:nowrap">
+                  <a href="{{ ch.link }}" target="_blank" rel="noopener" title="{{ ch.link }}"
+                     style="color:var(--brand-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                    {{ ic.icon('link', 12) }} {{ ch.link }}
+                  </a>
+                  <button type="button" class="btn btn-ghost btn-sm" data-copy="{{ ch.link }}"
+                          title="Холбоосыг хуулах">{{ ic.icon('copy', 14) }}</button>
+                </div>
               </td>
               <td>
                 {% set ws = webhook_state(ch.webhook_url) %}
@@ -49,14 +53,62 @@
               </td>
               <td>
                 <div class="row nowrap" style="gap:5px;flex-wrap:nowrap">
+                  <button type="button" class="btn btn-ghost btn-sm" data-editopen="ch{{ ch.id }}" title="Засах">
+                    {{ ic.icon('edit', 14) }}
+                  </button>
                   <form method="post" action="/admin/channels/{{ ch.id }}/toggle">
-                    <button class="btn btn-sm">{{ 'Унтраах' if ch.is_active else 'Асаах' }}</button>
+                    <button class="btn btn-sm" title="{{ 'Унтраах — түгээлтэд сонгогдохгүй болно' if ch.is_active else 'Асаах' }}"
+                            style="{{ 'color:var(--brand)' if ch.is_active else 'color:var(--dim)' }}">
+                      {{ ic.icon('power', 14) }}
+                    </button>
                   </form>
                   <form method="post" action="/admin/channels/{{ ch.id }}/delete"
                         data-confirm="'{{ ch.name }}' channel-ийг устгах уу? Түгээлтийн түүх мөн устна.">
                     <button class="btn btn-danger btn-sm">{{ ic.icon('trash', 14) }}</button>
                   </form>
                 </div>
+              </td>
+            </tr>
+
+            <tr data-editform="ch{{ ch.id }}" hidden>
+              <td colspan="8" style="background:rgba(0,224,164,.05)">
+                <form method="post" action="/admin/channels/{{ ch.id }}/edit">
+                  <div class="row" style="gap:10px;align-items:flex-end">
+                    <label class="field" style="margin:0;flex:1.6;min-width:180px">
+                      <span>Channel нэр *</span>
+                      <input type="text" name="name" value="{{ ch.name }}" required>
+                    </label>
+                    <label class="field" style="margin:0;flex:1.4;min-width:160px">
+                      <span>Team нэр</span>
+                      <input type="text" name="team_name" value="{{ ch.team_name or '' }}">
+                    </label>
+                    <label class="field" style="margin:0;width:110px">
+                      <span>Гишүүд</span>
+                      <input type="number" name="members" min="0" value="{{ ch.members }}">
+                    </label>
+                  </div>
+                  <label class="field mt" style="margin-bottom:10px">
+                    <span>Teams channel холбоос *</span>
+                    <input type="text" name="link" value="{{ ch.link }}" required
+                           placeholder="https://teams.microsoft.com/l/channel/…">
+                  </label>
+                  <label class="field" style="margin-bottom:10px">
+                    <span>Power Automate Workflow URL</span>
+                    <input type="text" name="webhook_url" value="{{ ch.webhook_url or '' }}"
+                           placeholder="https://prod-23.westus.logic.azure.com:443/workflows/…">
+                    <span class="tiny dim">
+                      Teams → channel → ⋯ → Workflows → "Post to a channel when a webhook request
+                      is received". Хоосон бол мессеж илгээгдэхгүй.
+                    </span>
+                  </label>
+                  <div class="row nowrap" style="gap:6px;flex-wrap:nowrap">
+                    <button class="btn btn-primary btn-sm">{{ ic.icon('check', 14) }} Хадгалах</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-editclose="ch{{ ch.id }}">Болих</button>
+                    <span class="spacer tiny dim">
+                      {{ ch.sent_count }} илгээлт · {{ ch.views_total }} үзэлт бүртгэгдсэн
+                    </span>
+                  </div>
+                </form>
               </td>
             </tr>
           {% else %}

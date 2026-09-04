@@ -18,7 +18,7 @@
         </thead>
         <tbody>
           {% for p in products %}
-            <tr data-prow="{{ p.id }}">
+            <tr data-editrow="p{{ p.id }}">
               <td>
                 <span class="row" style="gap:8px;flex-wrap:nowrap">
                   <span class="dot" style="background:{{ p.color }}"></span>
@@ -31,7 +31,7 @@
               <td class="num"><b>{{ p.views_total }}</b></td>
               <td>
                 <div class="row nowrap" style="gap:5px;flex-wrap:nowrap">
-                  <button type="button" class="btn btn-ghost btn-sm" data-pedit="{{ p.id }}" title="Засах">
+                  <button type="button" class="btn btn-ghost btn-sm" data-editopen="p{{ p.id }}" title="Засах">
                     {{ ic.icon('edit', 14) }}
                   </button>
                   <form method="post" action="/admin/products/{{ p.id }}/delete"
@@ -41,7 +41,7 @@
                 </div>
               </td>
             </tr>
-            <tr data-pform="{{ p.id }}" hidden>
+            <tr data-editform="p{{ p.id }}" hidden>
               <td colspan="6" style="background:rgba(0,224,164,.05)">
                 <form method="post" action="/admin/products/{{ p.id }}/edit"
                       class="row" style="gap:10px;align-items:flex-end">
@@ -63,7 +63,7 @@
                   </label>
                   <span class="row nowrap" style="gap:6px;flex-wrap:nowrap">
                     <button class="btn btn-primary btn-sm">{{ ic.icon('check', 14) }} Хадгалах</button>
-                    <button type="button" class="btn btn-ghost btn-sm" data-pcancel="{{ p.id }}">Болих</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-editclose="p{{ p.id }}">Болих</button>
                   </span>
                 </form>
                 <div class="tiny dim" style="margin-top:8px">

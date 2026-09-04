@@ -712,6 +712,23 @@ def admin_channels_add(request: Request, name: str = Form(...), team_name: str =
     return RedirectResponse("/admin/channels", status_code=303)
 
 
+@app.post("/admin/channels/{cid}/edit")
+def admin_channel_edit(request: Request, cid: int, name: str = Form(...),
+                       team_name: str = Form(""), link: str = Form(...),
+                       webhook_url: str = Form(""), members: int = Form(0)):
+    auth.require_admin(request)
+    if not repo.get_channel(cid):
+        raise HTTPException(404, "Channel олдсонгүй.")
+    if not repo.update_channel(cid, name, team_name, link, webhook_url, members):
+        flash(request, "Channel нэр болон холбоос заавал бөглөгдөнө.", "error")
+    elif webhook_url and teams.is_legacy_webhook(webhook_url):
+        flash(request, f"'{name.strip()}' хадгалагдлаа. Гэхдээ webhook нь зогсоосон "
+                       "Office 365 Connector тул мессеж илгээгдэхгүй.", "warn")
+    else:
+        flash(request, f"'{name.strip()}' шинэчлэгдлээ.")
+    return RedirectResponse("/admin/channels", status_code=303)
+
+
 @app.post("/admin/channels/{cid}/toggle")
 def admin_channel_toggle(request: Request, cid: int):
     auth.require_admin(request)

@@ -158,47 +158,59 @@
   document.querySelectorAll("[data-copy]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       navigator.clipboard.writeText(btn.dataset.copy).then(function () {
-        const old = btn.textContent;
-        btn.textContent = "Хуулагдлаа ✓";
-        setTimeout(function () { btn.textContent = old; }, 1600);
+        // innerHTML-ээр хадгална — дотор нь SVG дүрс байвал textContent устгачихна
+        if (btn.dataset.copyBusy) return;
+        btn.dataset.copyBusy = "1";
+        const old = btn.innerHTML;
+        const title = btn.title;
+        btn.innerHTML = "✓";
+        btn.title = "Хуулагдлаа";
+        setTimeout(function () {
+          btn.innerHTML = old;
+          btn.title = title;
+          delete btn.dataset.copyBusy;
+        }, 1600);
       });
     });
   });
 
-  /* ------------------------- бүтээгдэхүүний мөрийг засварын горимд оруулах */
-  function toggleProductRow(id, editing) {
-    var row = document.querySelector('[data-prow="' + id + '"]');
-    var form = document.querySelector('[data-pform="' + id + '"]');
+  /* ---------------- хүснэгтийн мөрийг байрандаа засварлах (inline edit)
+     Хэрэглээ: харагдах мөрд data-editrow="<key>", формын мөрд data-editform="<key>",
+     нээх товчинд data-editopen="<key>", хаах товчинд data-editclose="<key>".
+     Бүтээгдэхүүн, Teams channel хоёулаа үүнийг ашиглана. */
+  function toggleEditRow(key, editing) {
+    var row = document.querySelector('[data-editrow="' + key + '"]');
+    var form = document.querySelector('[data-editform="' + key + '"]');
     if (!row || !form) return;
     row.hidden = editing;
     form.hidden = !editing;
     if (editing) {
-      var first = form.querySelector('input[name="name"]');
-      if (first) { first.focus(); first.select(); }
+      var first = form.querySelector("input:not([type=hidden]), textarea, select");
+      if (first) { first.focus(); if (first.select) first.select(); }
     }
   }
 
-  document.querySelectorAll("[data-pedit]").forEach(function (btn) {
+  function closeAllEditRows() {
+    document.querySelectorAll("[data-editform]").forEach(function (f) {
+      if (!f.hidden) toggleEditRow(f.dataset.editform, false);
+    });
+  }
+
+  document.querySelectorAll("[data-editopen]").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      // Нэг дор ганц мөр л засварлаж байхаар бусдыг хаана
-      document.querySelectorAll("[data-pform]").forEach(function (f) {
-        toggleProductRow(f.dataset.pform, false);
-      });
-      toggleProductRow(btn.dataset.pedit, true);
+      closeAllEditRows();          // нэг дор ганц мөр л засварлана
+      toggleEditRow(btn.dataset.editopen, true);
     });
   });
 
-  document.querySelectorAll("[data-pcancel]").forEach(function (btn) {
+  document.querySelectorAll("[data-editclose]").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      toggleProductRow(btn.dataset.pcancel, false);
+      toggleEditRow(btn.dataset.editclose, false);
     });
   });
 
   document.addEventListener("keydown", function (e) {
-    if (e.key !== "Escape") return;
-    document.querySelectorAll("[data-pform]").forEach(function (f) {
-      if (!f.hidden) toggleProductRow(f.dataset.pform, false);
-    });
+    if (e.key === "Escape") closeAllEditRows();
   });
 
   /* ------------------------------------------ бүх channel сонгох товч */
